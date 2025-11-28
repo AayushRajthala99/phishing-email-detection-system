@@ -1,0 +1,32 @@
+name: PhishingEmailDetectionSystem
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'backend/**'
+      - 'frontend/**'
+      - 'docker-compose.yml'
+      - '.github/workflows/master.yml'
+
+jobs:
+  build-and-deploy:
+    name: Build and Deploy All Services
+    environment: staging
+    runs-on: [phishingemaildetectionsystem]
+
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Stop and Remove Old Containers
+        run: docker compose down --remove-orphans -v
+
+      - name: Prune Old Docker Images (Clear Cache)
+        # The -a flag removes all unused images (not just dangling)
+        # The -f flag forces the removal without a prompt
+        run: docker image prune -a -f
+
+      - name: Build and Deploy with Docker Compose
+        run: docker compose up -d --build
