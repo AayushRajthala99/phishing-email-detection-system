@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # The Backend Service (AI/ML API)
   backend:
