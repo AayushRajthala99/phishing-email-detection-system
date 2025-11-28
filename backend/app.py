@@ -1,25 +1,49 @@
-from flask import Flask
-from flask_cors import CORS  # Import CORS
+# spam_api.py
 import os
+import joblib
+from fastapi import FastAPI
+from pydantic import BaseModel
 
-app = Flask(__name__)
-CORS(app)  # This enables CORS for all routes in your app
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# -----------------------------
+# Load saved models and vectorizer
+# -----------------------------
+model = joblib.load(os.path.join(BASE_DIR, "models/spam_classifier_model.pkl"))
+vectorizer = joblib.load(os.path.join(BASE_DIR, "models/tfidf_vectorizer.pkl"))
 
 
-@app.route("/")
-def hello():
-    # We change this to return JSON data
-    # The frontend will fetch and display this message
-    return {"message": "Hello from the Python-Flask Backend!"}
+# -----------------------------
+# Define prediction function
+# -----------------------------
+def predict_email(subject: str, body: str, attachments: list = None):
+    text = (subject or "") + " " + (body or "")
+
+    if attachments:
+        print()
+        # extract_information()
+
+    text_tfidf = vectorizer.transform([text])
+    prediction = model.predict(text_tfidf)[0]
+
+    return "spam" if prediction == 1 else "ham"
 
 
-@app.route("/health")
-def health():
-    # Health check endpoint for Docker
-    return {"status": "healthy"}, 200
-    
+# -----------------------------
+# FastAPI app
+# -----------------------------
+app = FastAPI(title="Phishing Email Detection System")
 
-if __name__ == "__main__":
-    # Use environment variable for debug mode, default to False in production
-    debug_mode = os.getenv("FLASK_DEBUG", "False").lower() == "true"
-    app.run(debug=debug_mode, host="0.0.0.0", port=5000)
+
+# Define request structure
+class EmailRequest(BaseModel):
+    subject: str
+    body: str
+    attachments: list = None
+
+
+# Prediction endpoint
+@app.post("/predict")
+def predict(email: EmailRequest):
+    result = predict_email(email.subject, email.body, email.attachments)
+    return {"prediction": result}

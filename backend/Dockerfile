@@ -11,9 +11,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-ENV FLASK_APP=app.py
+ENV FASTAPI_APP=app.py
 
-ENV FLASK_RUN_HOST=0.0.0.0
+ENV FASTAPI_APP_RUN_HOST=0.0.0.0
 
 EXPOSE 5000
 
