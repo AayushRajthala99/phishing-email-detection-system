@@ -11,11 +11,13 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-ENV FASTAPI_APP=app.py
-
-ENV FASTAPI_APP_RUN_HOST=0.0.0.0
+ENV PYTHONUNBUFFERED=1
 
 EXPOSE 5000
 
-# Use gunicorn for production
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "4", "--timeout", "60", "app:app"]
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:5000/health || exit 1
+
+# Use uvicorn with gunicorn worker class for production FastAPI
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000", "--workers", "4"]
