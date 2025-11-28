@@ -1,11 +1,11 @@
 import os
 import joblib
 import logging
-from typing import Optional, List, Dict, Any
 from contextlib import asynccontextmanager
-from pydantic import BaseModel, Field, field_validator
-from fastapi import FastAPI, HTTPException, status
+from typing import Optional, List, Dict, Any
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field, field_validator
+from fastapi import FastAPI, HTTPException, status, File, UploadFile, Form
 
 # -----------------------------
 # Logging Configuration
@@ -82,6 +82,7 @@ class PredictionResponse(BaseModel):
     confidence: float
     spam_probability: float
     ham_probability: float
+    attachments_info: Optional[List[Dict[str, Any]]] = None
 
 
 class HealthResponse(BaseModel):
@@ -112,7 +113,9 @@ app.add_middleware(
 # -----------------------------
 # Prediction Logic
 # -----------------------------
-def run_prediction(subject: str, body: str) -> Dict[str, Any]:
+def run_prediction(
+    subject: str, body: str, attachments_info: Optional[List[Dict[str, Any]]] = None
+) -> Dict[str, Any]:
     if not ml_models.get("ready"):
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -123,6 +126,14 @@ def run_prediction(subject: str, body: str) -> Dict[str, Any]:
         text = f"{subject} {body}".strip()
         vectorizer = ml_models["vectorizer"]
         model = ml_models["classifier"]
+
+        # Log attachment information if present
+        if attachments_info:
+            logger.info(f"Processing email with {len(attachments_info)} attachment(s)")
+            for att in attachments_info:
+                logger.info(
+                    f"  - {att.get('filename')} ({att.get('size')} bytes, type: {att.get('content_type')})"
+                )
 
         # Transform and Predict
         text_tfidf = vectorizer.transform([text])
@@ -141,12 +152,17 @@ def run_prediction(subject: str, body: str) -> Dict[str, Any]:
         prediction_label = "spam" if prediction == 1 else "ham"
         confidence = spam_prob if prediction == 1 else ham_prob
 
-        return {
+        result = {
             "prediction": prediction_label,
             "confidence": round(confidence, 4),
             "spam_probability": round(spam_prob, 4),
             "ham_probability": round(ham_prob, 4),
         }
+
+        if attachments_info:
+            result["attachments_info"] = attachments_info
+
+        return result
 
     except Exception as e:
         logger.error(f"Prediction logic error: {e}")
@@ -177,6 +193,58 @@ async def health_check():
 @app.post("/predict", response_model=PredictionResponse, tags=["Prediction"])
 async def predict(email: EmailRequest):
     return run_prediction(email.subject, email.body)
+
+
+@app.post("/predict-with-files", response_model=PredictionResponse, tags=["Prediction"])
+async def predict_with_files(
+    subject: str = Form(...),
+    body: str = Form(...),
+    files: List[UploadFile] = File(default=[]),
+):
+    """
+    Predict whether an email is spam with file upload support.
+
+    - **subject**: Email subject line
+    - **body**: Email body content
+    - **files**: Optional file attachments
+    """
+    # Validate inputs
+    if not subject or not subject.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Subject cannot be empty",
+        )
+    if not body or not body.strip():
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Body cannot be empty",
+        )
+
+    # Process attachments
+    attachments_info = []
+    if files:
+        for file in files:
+            if file.filename:  # Check if file actually has content
+                # Read file metadata (could extend to scan content)
+                file_size = 0
+                try:
+                    content = await file.read()
+                    file_size = len(content)
+                    await file.seek(0)  # Reset file pointer
+                except Exception as e:
+                    logger.warning(f"Error reading file {file.filename}: {e}")
+
+                attachments_info.append(
+                    {
+                        "filename": file.filename,
+                        "content_type": file.content_type,
+                        "size": file_size,
+                    }
+                )
+
+    return run_prediction(
+        subject.strip(), body.strip(), attachments_info if attachments_info else None
+    )
 
 
 # Entry point for local debugging
