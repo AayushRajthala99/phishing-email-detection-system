@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import "./EmailForm.css";
 
 const EmailForm = ({ onSubmit, onReset, loading }) => {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [files, setFiles] = useState([]);
+  const fileInputRef = useRef(null);
 
   const handleFileChange = (e) => {
     setFiles(Array.from(e.target.files));
@@ -23,6 +24,9 @@ const EmailForm = ({ onSubmit, onReset, loading }) => {
     setSubject("");
     setBody("");
     setFiles([]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
     if (onReset) {
       onReset();
     }
@@ -77,6 +81,7 @@ const EmailForm = ({ onSubmit, onReset, loading }) => {
         <input
           type="file"
           id="files"
+          ref={fileInputRef}
           onChange={handleFileChange}
           multiple
           disabled={loading}
