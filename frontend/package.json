@@ -1,5 +1,5 @@
 {
-  "name": "Phishing-Email-Detection-System",
+  "name": "phishing-email-detection-system",
   "version": "1.0.0",
   "private": true,
   "dependencies": {
