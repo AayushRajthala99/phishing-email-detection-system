@@ -1,0 +1,29 @@
+# Docker Compose override for development
+# This file is automatically used alongside docker-compose.yml when you run:
+# docker compose up
+#
+# It enables hot-reloading and debug mode for local development
+
+services:
+  backend:
+    environment:
+      - FLASK_DEBUG=true
+    volumes:
+      # Mount source code for hot-reloading
+      - ./backend:/app
+    command: ["flask", "run", "--debug"]
+
+  frontend:
+    # For development, you might want to use npm start instead
+    # which provides hot-reloading. To do this:
+    # 1. Comment out the build and uncomment the following:
+    # image: node:22-alpine
+    # working_dir: /app
+    # volumes:
+    #   - ./frontend:/app
+    #   - /app/node_modules
+    # command: npm start
+    # ports:
+    #   - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src
