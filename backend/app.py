@@ -62,21 +62,6 @@ async def lifespan(app: FastAPI):
 # -----------------------------
 # Pydantic Models
 # -----------------------------
-class EmailRequest(BaseModel):
-    subject: str = Field(..., min_length=1, description="Email subject line")
-    body: str = Field(..., min_length=1, description="Email body content")
-    attachments: Optional[List[str]] = Field(
-        default=None, description="List of attachment filenames"
-    )
-
-    @field_validator("subject", "body")
-    @classmethod
-    def validate_not_empty(cls, v: str, info):
-        if not v or not v.strip():
-            raise ValueError(f"{info.field_name} cannot be empty or whitespace only")
-        return v.strip()
-
-
 class PredictionResponse(BaseModel):
     prediction: str
     confidence: float
@@ -191,17 +176,18 @@ async def health_check():
 
 
 @app.post("/predict", response_model=PredictionResponse, tags=["Prediction"])
-async def predict(email: EmailRequest):
-    """
-    Predict whether an email is spam with file upload support.
-    """
+async def predict(
+    subject: str = Form(...),
+    body: str = Form(...),
+    files: List[UploadFile] = File(default=[]),
+):
     # Validate inputs
-    if not email.subject or not email.subject.strip():
+    if not subject or not subject.strip():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Subject cannot be empty",
         )
-    if not email.body or not email.body.strip():
+    if not body or not body.strip():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Body cannot be empty",
@@ -209,8 +195,8 @@ async def predict(email: EmailRequest):
 
     # Process attachments
     attachments_info = []
-    if email.files:
-        for file in email.files:
+    if files:
+        for file in files:
             if file.filename:  # Check if file actually has content
                 # Read file metadata
                 file_size = 0
@@ -218,7 +204,7 @@ async def predict(email: EmailRequest):
                     # In a real scenario, you might scan the file content here
                     # Move to end to get size, then reset
                     await file.seek(0, os.SEEK_END)
-                    file_size = await file.tell()
+                    file_size = file.tell()
                     await file.seek(0)
                 except Exception as e:
                     logger.warning(f"Error reading file {file.filename}: {e}")
@@ -232,10 +218,10 @@ async def predict(email: EmailRequest):
                 )
 
         return await run_prediction(
-            email.subject.strip(),
-            email.body.strip(),
+            subject.strip(),
+            body.strip(),
             attachments_info if attachments_info else None,
         )
 
     else:
-        return run_prediction(email.subject, email.body)
+        return run_prediction(subject, body)
