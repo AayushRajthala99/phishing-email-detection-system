@@ -159,6 +159,11 @@ def run_prediction(subject: str, body: str) -> Dict[str, Any]:
 # -----------------------------
 # Endpoints
 # -----------------------------
+@app.get("/", tags=["Home"])
+async def home():
+    return {"message": "Welcome to the Phishing Email Detection System API."}
+
+
 @app.get("/health", response_model=HealthResponse, tags=["Health"])
 async def health_check():
     is_ready = ml_models.get("ready", False)
