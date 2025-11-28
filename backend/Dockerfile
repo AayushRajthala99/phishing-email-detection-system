@@ -27,16 +27,8 @@ RUN pip install --upgrade pip && \
 # Copy the rest of the application
 COPY . .
 
-# Create a non-root user for security
-RUN adduser --disabled-password --gecos "" appuser && \
-    chown -R appuser:appuser /app
-
-# Switch to non-root user
-USER appuser
-
 # Expose the port the app runs on
 EXPOSE 5000
 
-# Command to run the application
-# We use host 0.0.0.0 to make it accessible outside the container
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "5000"]
+# Use gunicorn for production
+CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "--workers", "4", "--bind", "0.0.0.0:5000", "--timeout", "60", "app:app"]

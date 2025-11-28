@@ -203,10 +203,6 @@ async def predict_with_files(
 ):
     """
     Predict whether an email is spam with file upload support.
-
-    - **subject**: Email subject line
-    - **body**: Email body content
-    - **files**: Optional file attachments
     """
     # Validate inputs
     if not subject or not subject.strip():
@@ -225,12 +221,14 @@ async def predict_with_files(
     if files:
         for file in files:
             if file.filename:  # Check if file actually has content
-                # Read file metadata (could extend to scan content)
+                # Read file metadata
                 file_size = 0
                 try:
-                    content = await file.read()
-                    file_size = len(content)
-                    await file.seek(0)  # Reset file pointer
+                    # In a real scenario, you might scan the file content here
+                    # Move to end to get size, then reset
+                    await file.seek(0, os.SEEK_END)
+                    file_size = file.tell()
+                    await file.seek(0)
                 except Exception as e:
                     logger.warning(f"Error reading file {file.filename}: {e}")
 
@@ -247,7 +245,9 @@ async def predict_with_files(
     )
 
 
-# Entry point for local debugging
+# -----------------------------
+# Local Debugging Entry Point
+# -----------------------------
 if __name__ == "__main__":
     import uvicorn
 
