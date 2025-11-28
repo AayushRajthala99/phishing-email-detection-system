@@ -36,15 +36,22 @@ async def lifespan(app: FastAPI):
     Load models on startup and clean up on shutdown.
     """
     logger.info("Loading ML models...")
+    logger.info(f"Model path: {MODEL_PATH}")
+    logger.info(f"Vectorizer path: {VECTORIZER_PATH}")
     try:
         if not os.path.exists(MODEL_PATH) or not os.path.exists(VECTORIZER_PATH):
             logger.warning(
                 f"Model files not found in {MODELS_DIR}. Predictions will fail."
             )
             ml_models["error"] = "Model files missing"
+            ml_models["ready"] = False
         else:
-            ml_models["classifier"] = joblib.load(MODEL_PATH)
-            ml_models["vectorizer"] = joblib.load(VECTORIZER_PATH)
+            classifier = joblib.load(MODEL_PATH)
+            vectorizer = joblib.load(VECTORIZER_PATH)
+            logger.info(f"Classifier loaded: {classifier}")
+            logger.info(f"Vectorizer loaded: {vectorizer}")
+            ml_models["classifier"] = classifier
+            ml_models["vectorizer"] = vectorizer
             ml_models["ready"] = True
             logger.info("Models loaded successfully!")
     except Exception as e:
@@ -109,6 +116,8 @@ async def run_prediction(
 
     try:
         text = f"{subject} {body}".strip()
+        logger.info(f"Processing text: {text[:100]}...")  # Log first 100 chars
+
         vectorizer = ml_models["vectorizer"]
         model = ml_models["classifier"]
 
@@ -121,12 +130,18 @@ async def run_prediction(
                 )
 
         # Transform and Predict
+        logger.info("Transforming text with vectorizer...")
         text_tfidf = vectorizer.transform([text])
+        logger.info(f"Text transformed, shape: {text_tfidf.shape}")
+
+        logger.info("Making prediction...")
         prediction = model.predict(text_tfidf)[0]
+        logger.info(f"Prediction result: {prediction}")
 
         # Get Probabilities
         if hasattr(model, "predict_proba"):
             probabilities = model.predict_proba(text_tfidf)[0]
+            logger.info(f"Probabilities: {probabilities}")
             # Assuming class 0 is ham, 1 is spam (standard sklearn behavior)
             ham_prob = float(probabilities[0])
             spam_prob = float(probabilities[1])
@@ -147,13 +162,14 @@ async def run_prediction(
         if attachments_info:
             result["attachments_info"] = attachments_info
 
+        logger.info(f"Final result: {result}")
         return result
 
     except Exception as e:
-        logger.error(f"Prediction logic error: {e}")
+        logger.error(f"Prediction logic error: {e}", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal processing error during prediction",
+            detail=f"Internal processing error during prediction: {str(e)}",
         )
 
 
@@ -181,6 +197,10 @@ async def predict(
     body: str = Form(...),
     files: List[UploadFile] = File(default=[]),
 ):
+    logger.info(
+        f"Received prediction request - Subject: '{subject}', Body length: {len(body)}, Files: {len(files)}"
+    )
+
     # Validate inputs
     if not subject or not subject.strip():
         raise HTTPException(
