@@ -1,15 +1,15 @@
 # Web Framework
-fastapi
-uvicorn
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
 python-multipart
 
 # Data Validation
-pydantic
+pydantic>=2.6.0
 
 # Machine Learning
-scikit-learn
-joblib
-numpy
+scikit-learn>=1.4.0
+joblib>=1.3.0
+numpy>=1.26.0
 pandas
 
 # Production Server (alternative to uvicorn)
