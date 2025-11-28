@@ -98,7 +98,7 @@ app.add_middleware(
 # -----------------------------
 # Prediction Logic
 # -----------------------------
-def run_prediction(
+async def run_prediction(
     subject: str, body: str, attachments_info: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
     if not ml_models.get("ready"):
@@ -217,11 +217,8 @@ async def predict(
                     }
                 )
 
-        return await run_prediction(
-            subject.strip(),
-            body.strip(),
-            attachments_info if attachments_info else None,
-        )
-
-    else:
-        return run_prediction(subject, body)
+    return await run_prediction(
+        subject.strip(),
+        body.strip(),
+        attachments_info if attachments_info else None,
+    )
