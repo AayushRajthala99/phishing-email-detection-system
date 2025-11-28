@@ -45,16 +45,12 @@ export const emailDetectionAPI = {
         formData.append("files", file);
       });
 
-      const response = await axios.post(
-        `${API_BASE_URL}/predict-with-files`,
-        formData,
-        {
-          headers: {
-            "Content-Type": "multipart/form-data",
-          },
-          timeout: 60000, // 60 seconds for file uploads
-        }
-      );
+      const response = await axios.post(`${API_BASE_URL}/predict`, formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+        timeout: 60000, // 60 seconds for file uploads
+      });
 
       return response.data;
     } catch (error) {

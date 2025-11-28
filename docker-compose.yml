@@ -12,14 +12,6 @@ services:
           memory: 2048M 
         reservations:
           memory: 512M
-    healthcheck:
-      # Test endpoint must be reachable from inside the container
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      # Give extra time for the ML models to load on startup
-      start_period: 40s
     networks:
       - app-network
 
@@ -32,7 +24,7 @@ services:
     restart: always
     depends_on:
       backend:
-        condition: service_healthy
+        condition: service_started
     networks:
       - app-network
 

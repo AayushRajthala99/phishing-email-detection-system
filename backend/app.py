@@ -192,25 +192,16 @@ async def health_check():
 
 @app.post("/predict", response_model=PredictionResponse, tags=["Prediction"])
 async def predict(email: EmailRequest):
-    return run_prediction(email.subject, email.body)
-
-
-@app.post("/predict-with-files", response_model=PredictionResponse, tags=["Prediction"])
-async def predict_with_files(
-    subject: str = Form(...),
-    body: str = Form(...),
-    files: List[UploadFile] = File(default=[]),
-):
     """
     Predict whether an email is spam with file upload support.
     """
     # Validate inputs
-    if not subject or not subject.strip():
+    if not email.subject or not email.subject.strip():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Subject cannot be empty",
         )
-    if not body or not body.strip():
+    if not email.body or not email.body.strip():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Body cannot be empty",
@@ -218,8 +209,8 @@ async def predict_with_files(
 
     # Process attachments
     attachments_info = []
-    if files:
-        for file in files:
+    if email.files:
+        for file in email.files:
             if file.filename:  # Check if file actually has content
                 # Read file metadata
                 file_size = 0
@@ -227,7 +218,7 @@ async def predict_with_files(
                     # In a real scenario, you might scan the file content here
                     # Move to end to get size, then reset
                     await file.seek(0, os.SEEK_END)
-                    file_size = file.tell()
+                    file_size = await file.tell()
                     await file.seek(0)
                 except Exception as e:
                     logger.warning(f"Error reading file {file.filename}: {e}")
@@ -240,6 +231,11 @@ async def predict_with_files(
                     }
                 )
 
-    return run_prediction(
-        subject.strip(), body.strip(), attachments_info if attachments_info else None
-    )
+        return await run_prediction(
+            email.subject.strip(),
+            email.body.strip(),
+            attachments_info if attachments_info else None,
+        )
+
+    else:
+        return run_prediction(email.subject, email.body)
