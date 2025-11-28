@@ -30,6 +30,11 @@ function App() {
     setResult(null);
   };
 
+  const handleReset = () => {
+    setError(null);
+    setResult(null);
+  };
+
   return (
     <div className="app">
       <div className="container">
@@ -44,7 +49,11 @@ function App() {
         </header>
 
         <main className="main">
-          <EmailForm onSubmit={handleSubmit} loading={loading} />
+          <EmailForm
+            onSubmit={handleSubmit}
+            onReset={handleReset}
+            loading={loading}
+          />
 
           {error && <ErrorDisplay error={error} onRetry={handleRetry} />}
 

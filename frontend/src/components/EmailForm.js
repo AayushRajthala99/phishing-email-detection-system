@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import "./EmailForm.css";
 
-const EmailForm = ({ onSubmit, loading }) => {
+const EmailForm = ({ onSubmit, onReset, loading }) => {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [files, setFiles] = useState([]);
@@ -23,6 +23,9 @@ const EmailForm = ({ onSubmit, loading }) => {
     setSubject("");
     setBody("");
     setFiles([]);
+    if (onReset) {
+      onReset();
+    }
   };
 
   const formatFileSize = (bytes) => {
