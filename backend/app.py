@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException, status, File, UploadFile, Form
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
-logger = logging.getLogger("phishing-detection-api")
+logger = logging.getLogger("Phishing-Email-Detection-System-API")
 
 # -----------------------------
 # Configuration
@@ -243,12 +243,3 @@ async def predict_with_files(
     return run_prediction(
         subject.strip(), body.strip(), attachments_info if attachments_info else None
     )
-
-
-# -----------------------------
-# Local Debugging Entry Point
-# -----------------------------
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run("app:app", host="0.0.0.0", port=5000, reload=True)

@@ -31,4 +31,4 @@ COPY . .
 EXPOSE 5000
 
 # Use gunicorn for production
-CMD ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "--workers", "4", "--bind", "0.0.0.0:5000", "--timeout", "60", "app:app"]
+CMD ["uvicorn", "app:app","--reload", "--workers", "4", "--host", "0.0.0.0", "--port", "5000", "--timeout", "60"]

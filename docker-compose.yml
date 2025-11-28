@@ -1,34 +1,37 @@
+version: '3.8'
+
 services:
-  # The Backend Service
+  # The Backend Service (AI/ML API)
   backend:
     build: ./backend
     container_name: backend-container
     ports:
       - "5000:5000"
     restart: always
+    deploy:
+      resources:
+        limits:
+          memory: 2048M 
+        reservations:
+          memory: 512M
     healthcheck:
+      # Test endpoint must be reachable from inside the container
       test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
+      # Give extra time for the ML models to load on startup
       start_period: 40s
     networks:
       - app-network
 
-  # The Frontend Service
+  # The Frontend Service (Web UI)
   frontend:
     build: ./frontend
     container_name: frontend-container
     ports:
       - "3000:80"
     restart: always
-    healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-    # This makes sure the backend starts up before the frontend tries to connect
     depends_on:
       backend:
         condition: service_healthy
@@ -38,8 +41,3 @@ services:
 networks:
   app-network:
     driver: bridge
-
-  # Will add 'ai-ml' service here later
-  # ai-ml:
-  #   build: ./ai-ml
-  #   ...
