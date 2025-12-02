@@ -1,4 +1,4 @@
-# Stage 1: Build the React application
+# Stage 1: Build Next.js app
 FROM node:22-alpine AS build
 
 WORKDIR /app
@@ -9,27 +9,22 @@ COPY package*.json ./
 # Install dependencies
 RUN npm install
 
-# Copy source code
+# Copy the source code
 COPY . .
 
-# Build the application
+# Build the Next.js application
 RUN npm run build
 
-# Stage 2: Serve with Nginx
-FROM nginx:1.27-alpine
+# Stage 2: Run the app
+FROM node:22-alpine AS runner
 
-# Copy custom nginx config
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+WORKDIR /app
 
-# Copy built files from build stage
-COPY --from=build /app/build /usr/share/nginx/html
+# Copy built output and node_modules
+COPY --from=build /app ./
 
-# Add healthcheck
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
+# Expose Next.js port
+EXPOSE 3000
 
-# Expose port 80
-EXPOSE 80
-
-# Start nginx
-CMD ["nginx", "-g", "daemon off;"]
+# Run Next.js
+CMD ["npm", "start"]
