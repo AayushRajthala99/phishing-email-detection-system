@@ -243,7 +243,7 @@ async def predict(
         attachments_info if attachments_info else None,
     )
 
-
+# to do locally run the app
 # if __name__ == "__main__":
 #     import uvicorn
 
