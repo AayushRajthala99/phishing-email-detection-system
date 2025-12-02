@@ -33,7 +33,7 @@ export default function PhishingDetector() {
   const [error, setError] = useState<string | null>(null)
 
   // Replace with your FastAPI backend URL
-  const API_URL = "http://0.0.0.0:5000"
+  const API_URL = "http://backend:5000"
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
