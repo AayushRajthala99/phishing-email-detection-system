@@ -1,0 +1,407 @@
+openapi: 3.0.3
+info:
+  title: Phishing Email Detection System API
+  description: |
+    AI-powered email spam and phishing detection API built with FastAPI and Machine Learning.
+    
+    ## Features
+    - **Email Analysis**: Analyze email subject and body for spam/phishing content
+    - **Attachment Support**: Handle multiple file attachments with metadata extraction
+    - **ML-Powered**: Uses TF-IDF vectorization and Logistic Regression
+    - **Real-time**: Instant prediction results with confidence scores
+    
+    ## Authentication
+    Currently, the API does not require authentication. For production use, implement proper authentication mechanisms.
+    
+    ## Rate Limiting
+    No rate limiting is currently implemented. Consider adding rate limits for production deployment.
+    
+  version: 1.0.0
+  contact:
+    name: API Support
+    url: https://github.com/AayushRajthala99/phishing-email-detection-system
+    email: your-email@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:5000
+    description: Local development server
+  - url: http://backend:5000
+    description: Docker internal network
+  - url: https://your-production-domain.com
+    description: Production server (configure as needed)
+
+tags:
+  - name: Home
+    description: Welcome and basic information endpoints
+  - name: Health
+    description: Health check and monitoring endpoints
+  - name: Prediction
+    description: Email spam/phishing prediction endpoints
+
+paths:
+  /:
+    get:
+      tags:
+        - Home
+      summary: Welcome Message
+      description: Returns a welcome message for the API
+      operationId: getHome
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Welcome to the Phishing Email Detection System API."
+              example:
+                message: "Welcome to the Phishing Email Detection System API."
+
+  /health:
+    get:
+      tags:
+        - Health
+      summary: Health Check
+      description: Check the health status of the API and ML models
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Health check successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+              examples:
+                healthy:
+                  summary: Healthy status
+                  value:
+                    status: "healthy"
+                    models_loaded: true
+                    error: null
+                unhealthy:
+                  summary: Unhealthy status
+                  value:
+                    status: "unhealthy"
+                    models_loaded: false
+                    error: "Model files missing"
+
+  /predict:
+    post:
+      tags:
+        - Prediction
+      summary: Predict Email Spam/Phishing
+      description: |
+        Analyze an email for spam or phishing content using machine learning.
+        
+        ### Input Requirements
+        - **subject**: Email subject line (required, non-empty string)
+        - **body**: Email body content (required, non-empty string)
+        - **files**: Email attachments (optional, multiple files supported)
+        
+        ### Response
+        Returns prediction results including:
+        - Classification (spam/ham)
+        - Confidence score
+        - Probability scores for both classes
+        - Attachment metadata (if files were uploaded)
+        
+        ### File Upload
+        - Maximum file size: 50MB per file
+        - Multiple files supported
+        - Files are analyzed for malicious content
+        - SHA-256 hash is computed for each file
+        - Maliciousness score and threat categories are provided
+        
+      operationId: predictEmail
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PredictionRequest'
+            examples:
+              simple_email:
+                summary: Email without attachments
+                value:
+                  subject: "Meeting Tomorrow"
+                  body: "Hi team, let's meet tomorrow at 10 AM to discuss the project status."
+              spam_email:
+                summary: Potential spam email
+                value:
+                  subject: "Congratulations! You've won $1,000,000"
+                  body: "Click here immediately to claim your prize. Limited time offer!"
+              email_with_attachments:
+                summary: Email with attachments
+                value:
+                  subject: "Invoice for November"
+                  body: "Please find attached the invoice for this month."
+                  files: ["invoice.pdf", "receipt.png"]
+      responses:
+        '200':
+          description: Prediction successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PredictionResponse'
+              examples:
+                spam_detected:
+                  summary: Spam email detected
+                  value:
+                    prediction: "spam"
+                    confidence: 0.9234
+                    spam_probability: 0.9234
+                    ham_probability: 0.0766
+                    attachments_info: null
+                legitimate_email:
+                  summary: Legitimate email
+                  value:
+                    prediction: "ham"
+                    confidence: 0.8856
+                    spam_probability: 0.1144
+                    ham_probability: 0.8856
+                    attachments_info: null
+                email_with_files:
+                  summary: Email with attachments
+                  value:
+                    prediction: "ham"
+                    confidence: 0.7543
+                    spam_probability: 0.2457
+                    ham_probability: 0.7543
+                    attachments_info:
+                      - filename: "invoice.exe"
+                        content_type: "application/exe"
+                        sha256sum: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+                        size: 45678
+                        malicious: 0.1234
+                        category: ["trojan", "phishing", "ransomware"]
+                      - filename: "receipt.pdf"
+                        content_type: "application/pdf"
+                        sha256sum: "a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3"
+                        size: 23456
+                        malicious: 0.0543
+                        category: ["benign"]
+        '422':
+          description: Validation error - Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationError'
+              examples:
+                empty_subject:
+                  summary: Empty subject
+                  value:
+                    detail: "Subject cannot be empty"
+                empty_body:
+                  summary: Empty body
+                  value:
+                    detail: "Body cannot be empty"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                processing_error:
+                  summary: Processing error
+                  value:
+                    detail: "Internal processing error during prediction: Model prediction failed"
+        '503':
+          description: Service unavailable - Models not loaded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                models_not_loaded:
+                  summary: Models not available
+                  value:
+                    detail: "Models not loaded: Model files missing"
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - models_loaded
+      properties:
+        status:
+          type: string
+          enum: [healthy, unhealthy]
+          description: Overall health status of the API
+          example: "healthy"
+        models_loaded:
+          type: boolean
+          description: Whether ML models are loaded and ready
+          example: true
+        error:
+          type: string
+          nullable: true
+          description: Error message if models failed to load
+          example: null
+
+    PredictionRequest:
+      type: object
+      required:
+        - subject
+        - body
+      properties:
+        subject:
+          type: string
+          minLength: 1
+          description: Email subject line
+          example: "Important: Account Verification Required"
+        body:
+          type: string
+          minLength: 1
+          description: Email body content
+          example: "Dear user, please verify your account by clicking the link below..."
+        files:
+          type: array
+          items:
+            type: string
+            format: binary
+          description: Email attachments (optional)
+          maxItems: 10
+
+    PredictionResponse:
+      type: object
+      required:
+        - prediction
+        - confidence
+        - spam_probability
+        - ham_probability
+      properties:
+        prediction:
+          type: string
+          enum: [spam, ham]
+          description: |
+            Classification result:
+            - `spam`: Email is classified as spam/phishing
+            - `ham`: Email is classified as legitimate
+          example: "spam"
+        confidence:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Confidence score for the prediction (0.0 to 1.0)
+          example: 0.9234
+        spam_probability:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Probability that the email is spam (0.0 to 1.0)
+          example: 0.9234
+        ham_probability:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Probability that the email is legitimate (0.0 to 1.0)
+          example: 0.0766
+        attachments_info:
+          type: array
+          nullable: true
+          description: Information about uploaded attachments (null if no files)
+          items:
+            $ref: '#/components/schemas/AttachmentInfo'
+
+    AttachmentInfo:
+      type: object
+      required:
+        - filename
+        - size
+        - sha256sum
+        - malicious
+        - category
+      properties:
+        filename:
+          type: string
+          description: Name of the uploaded file
+          example: "invoice.pdf"
+        content_type:
+          type: string
+          nullable: true
+          description: MIME type of the file
+          example: "application/pdf"
+        sha256sum:
+          type: string
+          pattern: '^[a-f0-9]{64}$'
+          description: SHA-256 hash of the file content
+          example: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        size:
+          type: integer
+          format: int64
+          description: File size in bytes
+          example: 45678
+        malicious:
+          type: number
+          format: float
+          minimum: 0.0
+          maximum: 1.0
+          description: Maliciousness score of the file (0.0 to 1.0, where higher values indicate more likely to be malicious)
+          example: 0.7643
+        category:
+          type: array
+          items:
+            type: string
+          description: List of threat categories detected in the file
+          example: ["trojan", "phishing", "ransomware"]
+
+    ValidationError:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: Detailed error message
+          example: "Subject cannot be empty"
+
+    Error:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: Error description
+          example: "Internal processing error during prediction"
+
+  examples:
+    SpamEmail:
+      summary: Typical spam email
+      value:
+        subject: "You've Won!"
+        body: "Congratulations! Click here to claim your $1,000,000 prize now!"
+
+    LegitimateEmail:
+      summary: Legitimate business email
+      value:
+        subject: "Q4 Report"
+        body: "Please review the attached Q4 financial report for the meeting."
+
+    PhishingEmail:
+      summary: Phishing attempt
+      value:
+        subject: "URGENT: Verify Your Account"
+        body: "Your account will be suspended. Click this link immediately to verify."
+
+# Security schemes (for future implementation)
+# security:
+#   - ApiKeyAuth: []
+
+# securitySchemes:
+#   ApiKeyAuth:
+#     type: apiKey
+#     in: header
+#     name: X-API-Key
