@@ -16,7 +16,7 @@ function App() {
     setResult(null);
 
     try {
-      const response = await emailDetectionAPI.predictEmailWithFiles(emailData);
+      const response = await emailDetectionAPI.predictEmail(emailData);
       setResult(response);
     } catch (err) {
       setError(err.message || "Failed to analyze email. Please try again.");
