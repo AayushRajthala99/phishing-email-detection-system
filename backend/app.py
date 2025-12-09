@@ -1,6 +1,7 @@
 import os
 import joblib
 import logging
+import hashlib
 from contextlib import asynccontextmanager
 from typing import Optional, List, Dict, Any
 from fastapi.middleware.cors import CORSMiddleware
@@ -246,22 +247,34 @@ async def predict(
     if files:
         for file in files:
             if file.filename:  # Check if file actually has content
-                # Read file metadata
+                # Read file content and calculate hash
                 file_size = 0
+                sha256_hash = None
                 try:
-                    # In a real scenario, you might scan the file content here
-                    # Move to end to get size, then reset
-                    await file.seek(0, os.SEEK_END)
-                    file_size = file.tell()
+                    # Read file content
+                    file_content = await file.read()
+                    file_size = len(file_content)
+
+                    # Calculate SHA256 hash
+                    hash_object = hashlib.sha256(file_content)
+                    sha256_hash = hash_object.hexdigest()
+
+                    # Reset file pointer for potential future use
                     await file.seek(0)
+
+                    logger.info(
+                        f"Processed attachment: {file.filename} "
+                        f"(size: {file_size} bytes, SHA256: {sha256_hash})"
+                    )
                 except Exception as e:
-                    logger.warning(f"Error reading file {file.filename}: {e}")
+                    logger.warning(f"Error processing file {file.filename}: {e}")
 
                 attachments_info.append(
                     {
                         "filename": file.filename,
                         "content_type": file.content_type,
                         "size": file_size,
+                        "sha256": sha256_hash,
                     }
                 )
 
