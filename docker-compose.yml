@@ -4,7 +4,7 @@ services:
     image: mongo:7.0
     container_name: mongodb-container
     restart: always
-    command: ["mongod", "--quiet"]
+    command: ["mongod", "--quiet", "--logLevel", "0"]
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-securepassword123}
