@@ -95,19 +95,99 @@ class HealthResponse(BaseModel):
     error: Optional[str] = None
 
 
+class AttachmentInfo(BaseModel):
+    """Model for file attachment information"""
+
+    filename: str = Field(..., example="BITDEFENDER.txt")
+    content_type: str = Field(..., example="text/plain")
+    size: int = Field(..., example=23)
+    sha256: str = Field(
+        ..., example="6f2eda4c0fa513cb4081ed255744531acbaa5c0e08d7d60dec7789704ff4afbc"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "filename": "BITDEFENDER.txt",
+                "content_type": "text/plain",
+                "size": 23,
+                "sha256": "6f2eda4c0fa513cb4081ed255744531acbaa5c0e08d7d60dec7789704ff4afbc",
+            }
+        }
+
+
 class ReportResponse(BaseModel):
-    id: str = Field(alias="_id")
-    subject: str
-    body: str
-    prediction: str
-    confidence: float
-    spam_probability: float
-    ham_probability: float
-    timestamp: str
-    attachments_info: Optional[List[Dict[str, Any]]] = None
+    """Model for a single prediction report"""
+
+    id: str = Field(alias="_id", example="6938b2d719aeb1dd9e914755")
+    subject: str = Field(..., example="testsubject")
+    body: str = Field(..., example="this is test email body")
+    prediction: str = Field(..., example="spam")
+    confidence: float = Field(..., example=0.9391)
+    spam_probability: float = Field(..., example=0.9391)
+    ham_probability: float = Field(..., example=0.0609)
+    timestamp: str = Field(..., example="2025-12-09T23:37:59.433000")
+    attachments_info: Optional[List[AttachmentInfo]] = None
 
     class Config:
         populate_by_name = True
+        json_schema_extra = {
+            "example": {
+                "_id": "6938b2d719aeb1dd9e914755",
+                "subject": "testsubject",
+                "body": "this is test email body",
+                "prediction": "spam",
+                "confidence": 0.9391,
+                "spam_probability": 0.9391,
+                "ham_probability": 0.0609,
+                "timestamp": "2025-12-09T23:37:59.433000",
+            }
+        }
+
+
+class AllReportsResponse(BaseModel):
+    """Model for all reports response"""
+
+    total: int = Field(..., example=2)
+    reports: List[Dict[str, Any]] = Field(...)
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "total": 2,
+                "reports": [
+                    {
+                        "_id": "6938b2d719aeb1dd9e914755",
+                        "subject": "testsubject",
+                        "body": "this is test email body",
+                        "prediction": "spam",
+                        "confidence": 0.9391,
+                        "spam_probability": 0.9391,
+                        "ham_probability": 0.0609,
+                        "timestamp": "2025-12-09T23:37:59.433000",
+                    },
+                    {
+                        "_id": "6938b2a719aeb1dd9e914754",
+                        "subject": "asdasdasdasd",
+                        "body": "asdasdasdasd",
+                        "prediction": "spam",
+                        "confidence": 0.6524,
+                        "spam_probability": 0.6524,
+                        "ham_probability": 0.3476,
+                        "attachments_info": [
+                            {
+                                "filename": "samplefile.txt",
+                                "content_type": "text/plain",
+                                "size": 23,
+                                "sha256": "6f2eda4c0fa513cb4081ed255744531acbaa5c0e08d7d60dec7789704ff4afbc",
+                                "malicious_score": 0.6678,
+                            }
+                        ],
+                        "timestamp": "2025-12-09T23:37:11.548000",
+                    },
+                ],
+            }
+        }
 
 
 # -----------------------------
@@ -275,6 +355,7 @@ async def predict(
                         "content_type": file.content_type,
                         "size": file_size,
                         "sha256": sha256_hash,
+                        "malicious_score": 0.0,  # Placeholder for future use
                     }
                 )
 
@@ -316,11 +397,19 @@ async def predict(
     return result
 
 
-@app.get("/reports", tags=["Reports"])
+@app.get("/reports", response_model=AllReportsResponse, tags=["Reports"])
 async def get_all_reports():
     """
     Retrieve all prediction reports from the database.
-    Returns a list of all stored predictions with metadata.
+
+    Returns a list of all stored predictions with metadata including:
+    - Email subject and body
+    - Prediction verdict (spam/ham)
+    - Confidence scores
+    - Attachment information (if present) with SHA256 hashes
+    - Timestamp of prediction
+
+    The reports are sorted by timestamp in descending order (newest first).
     """
     try:
         # Check database connection
@@ -354,15 +443,34 @@ async def get_all_reports():
         )
 
 
-@app.get("/report", tags=["Reports"])
-async def get_report_by_id(id: str = Query(..., description="Report ID to retrieve")):
+@app.get("/report", response_model=ReportResponse, tags=["Reports"])
+async def get_report_by_id(
+    id: str = Query(
+        ..., description="Report ID to retrieve", example="6938b2d719aeb1dd9e914755"
+    )
+):
     """
     Retrieve a single prediction report by its unique ID.
 
-    Parameters:
-    - id: The MongoDB ObjectId of the report (required)
+    Returns detailed information about a specific prediction including:
+    - Email subject and body
+    - Prediction verdict (spam/ham) with confidence scores
+    - Attachment information (filename, content type, size, SHA256 hash)
+    - Timestamp of when the prediction was made
 
-    Returns the report details including form data and prediction verdict.
+    **Parameters:**
+    - **id**: The MongoDB ObjectId of the report (24-character hexadecimal string)
+
+    **Example:**
+    ```
+    GET /report?id=6938b2d719aeb1dd9e914755
+    ```
+
+    **Errors:**
+    - 422: Missing or empty ID parameter
+    - 404: Report with specified ID not found
+    - 503: Database not connected
+    - 500: Internal server error
     """
     try:
         # Validate ID parameter
