@@ -4,6 +4,7 @@ services:
     image: mongo:7.0
     container_name: mongodb-container
     restart: always
+    command: ["mongod", "--quiet"]
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-securepassword123}
@@ -21,14 +22,19 @@ services:
         reservations:
           memory: 256M
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
       interval: 10s
       timeout: 5s
       retries: 5
 
   # The Backend Service (AI/ML API)
   backend:
-    build: ./backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      cache_from:
+        - backend-container:latest
+    image: backend-container:latest
     container_name: backend-container
     ports:
       - "5000:5000"
@@ -53,10 +59,14 @@ services:
 
   # The Frontend Service (Web UI)
   frontend:
-    build: 
+    build:
       context: ./frontend
+      dockerfile: Dockerfile
       args:
         NEXT_PUBLIC_API_URL: http://localhost:5000
+      cache_from:
+        - frontend-container:latest
+    image: frontend-container:latest
     container_name: frontend-container
     ports:
       - "3000:3000"

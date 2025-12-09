@@ -12,3 +12,14 @@ ENV/
 .pytest_cache/
 .coverage
 htmlcov/
+.git/
+.gitignore
+.dockerignore
+Dockerfile
+README.md
+*.md
+.vscode/
+.idea/
+tests/
+*.ipynb
+.ipynb_checkpoints/

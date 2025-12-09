@@ -110,7 +110,7 @@ class DatabaseManager:
         Returns:
             String ID of inserted document, or None on failure
         """
-        if not self.is_connected or not self.db:
+        if not self.is_connected or self.db is None:
             logger.error("Cannot save prediction: Database not connected")
             return None
 
@@ -137,7 +137,7 @@ class DatabaseManager:
         Retrieve all prediction reports from database.
         Returns list of reports or None on failure.
         """
-        if not self.is_connected or not self.db:
+        if not self.is_connected or self.db is None:
             logger.error("Cannot fetch reports: Database not connected")
             return None
 
@@ -167,7 +167,7 @@ class DatabaseManager:
         Returns:
             Report document or None if not found/error
         """
-        if not self.is_connected or not self.db:
+        if not self.is_connected or self.db is None:
             logger.error("Cannot fetch report: Database not connected")
             return None
 
