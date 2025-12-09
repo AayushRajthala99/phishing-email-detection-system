@@ -5,10 +5,17 @@ Implements secure connection pooling for high-concurrency scenarios.
 
 import os
 import logging
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from datetime import datetime
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pymongo.errors import ConnectionFailure, ServerSelectionTimeoutError
+from cache import cache
+
+try:
+    from config import settings
+    USE_CONFIG = True
+except ImportError:
+    USE_CONFIG = False
 
 logger = logging.getLogger("Phishing-Email-Detection-System-API.Database")
 
@@ -30,12 +37,23 @@ class DatabaseManager:
         Returns True if successful, False otherwise.
         """
         try:
-            # Get configuration from environment variables
-            mongo_host = os.getenv("MONGO_HOST", "localhost")
-            mongo_port = int(os.getenv("MONGO_PORT", "27017"))
-            mongo_username = os.getenv("MONGO_USERNAME", "admin")
-            mongo_password = os.getenv("MONGO_PASSWORD", "securepassword123")
-            mongo_db_name = os.getenv("MONGO_DB_NAME", "phishing_detection")
+            # Get configuration
+            if USE_CONFIG:
+                mongo_host = settings.MONGO_HOST
+                mongo_port = settings.MONGO_PORT
+                mongo_username = settings.MONGO_USERNAME
+                mongo_password = settings.MONGO_PASSWORD
+                mongo_db_name = settings.MONGO_DB_NAME
+                max_pool = settings.MONGO_MAX_POOL_SIZE
+                min_pool = settings.MONGO_MIN_POOL_SIZE
+            else:
+                mongo_host = os.getenv("MONGO_HOST", "localhost")
+                mongo_port = int(os.getenv("MONGO_PORT", "27017"))
+                mongo_username = os.getenv("MONGO_USERNAME", "admin")
+                mongo_password = os.getenv("MONGO_PASSWORD", "securepassword123")
+                mongo_db_name = os.getenv("MONGO_DB_NAME", "phishing_detection")
+                max_pool = 50
+                min_pool = 10
 
             # Build connection URI with authentication
             mongo_uri = f"mongodb://{mongo_username}:{mongo_password}@{mongo_host}:{mongo_port}/"
@@ -45,13 +63,15 @@ class DatabaseManager:
             # Create client with optimized connection pool settings
             self.client = AsyncIOMotorClient(
                 mongo_uri,
-                maxPoolSize=50,  # Maximum connections in pool
-                minPoolSize=10,  # Minimum connections to maintain
-                maxIdleTimeMS=45000,  # Close idle connections after 45s
-                serverSelectionTimeoutMS=5000,  # 5s timeout for server selection
-                connectTimeoutMS=10000,  # 10s connection timeout
-                socketTimeoutMS=45000,  # 45s socket timeout
-                retryWrites=True,  # Automatic retry for write operations
+                maxPoolSize=max_pool,
+                minPoolSize=min_pool,
+                maxIdleTimeMS=45000,
+                serverSelectionTimeoutMS=5000,
+                connectTimeoutMS=10000,
+                socketTimeoutMS=45000,
+                retryWrites=True,
+                retryReads=True,  # Also retry read operations
+                w="majority",  # Write concern for data safety
             )
 
             # Get database reference
@@ -83,6 +103,12 @@ class DatabaseManager:
             await self.db.predictions.create_index([("timestamp", -1)])
             # Index on prediction for filtering
             await self.db.predictions.create_index("prediction")
+            # Compound index for common queries
+            await self.db.predictions.create_index(
+                [("prediction", 1), ("timestamp", -1)]
+            )
+            # Index on SHA256 for attachment lookups
+            await self.db.predictions.create_index("attachments_info.sha256")
             logger.info("Database indexes created successfully")
         except Exception as e:
             logger.warning(f"Failed to create indexes: {e}")
@@ -125,6 +151,10 @@ class DatabaseManager:
             result = await self.db.predictions.insert_one(document)
 
             inserted_id = str(result.inserted_id)
+            
+            # Invalidate cache since we have new data
+            cache.delete("all_reports")
+            
             logger.info(f"Prediction saved successfully with ID: {inserted_id}")
             return inserted_id
 
@@ -132,16 +162,27 @@ class DatabaseManager:
             logger.error(f"Failed to save prediction: {e}", exc_info=True)
             return None
 
-    async def get_all_reports(self) -> Optional[list]:
+    async def get_all_reports(self, use_cache: bool = True) -> Optional[List[Dict[str, Any]]]:
         """
         Retrieve all prediction reports from database.
         Returns list of reports or None on failure.
+        
+        Args:
+            use_cache: Whether to use cached results
         """
         if not self.is_connected or self.db is None:
             logger.error("Cannot fetch reports: Database not connected")
             return None
 
         try:
+            # Try cache first
+            if use_cache:
+                cache_key = "all_reports"
+                cached = cache.get(cache_key)
+                if cached is not None:
+                    logger.debug(f"Cache hit for all reports ({len(cached)} reports)")
+                    return cached
+            
             # Fetch all documents, sorted by timestamp (newest first)
             cursor = self.db.predictions.find().sort("timestamp", -1)
             reports = await cursor.to_list(length=None)
@@ -150,6 +191,10 @@ class DatabaseManager:
             for report in reports:
                 report["_id"] = str(report["_id"])
 
+            # Cache the results
+            if use_cache:
+                cache.set(cache_key, reports, ttl=60)  # Cache for 1 minute
+            
             logger.info(f"Retrieved {len(reports)} reports from database")
             return reports
 
@@ -157,12 +202,13 @@ class DatabaseManager:
             logger.error(f"Failed to fetch reports: {e}", exc_info=True)
             return None
 
-    async def get_report_by_id(self, report_id: str) -> Optional[Dict[str, Any]]:
+    async def get_report_by_id(self, report_id: str, use_cache: bool = True) -> Optional[Dict[str, Any]]:
         """
         Retrieve a single prediction report by ID.
 
         Args:
             report_id: String representation of MongoDB ObjectId
+            use_cache: Whether to use cached results
 
         Returns:
             Report document or None if not found/error
@@ -172,6 +218,14 @@ class DatabaseManager:
             return None
 
         try:
+            # Try cache first
+            if use_cache:
+                cache_key = f"report_{report_id}"
+                cached = cache.get(cache_key)
+                if cached is not None:
+                    logger.debug(f"Cache hit for report {report_id}")
+                    return cached
+            
             from bson import ObjectId
             from bson.errors import InvalidId
 
@@ -188,6 +242,11 @@ class DatabaseManager:
             if report:
                 # Convert ObjectId to string
                 report["_id"] = str(report["_id"])
+                
+                # Cache the result
+                if use_cache:
+                    cache.set(cache_key, report, ttl=300)  # Cache for 5 minutes
+                
                 logger.info(f"Retrieved report with ID: {report_id}")
             else:
                 logger.info(f"No report found with ID: {report_id}")
