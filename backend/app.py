@@ -1,11 +1,13 @@
 import os
 import joblib
 import logging
+import hashlib
 from contextlib import asynccontextmanager
 from typing import Optional, List, Dict, Any
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
-from fastapi import FastAPI, HTTPException, status, File, UploadFile, Form
+from fastapi import FastAPI, HTTPException, status, File, UploadFile, Form, Query
+from database import db_manager
 
 # -----------------------------
 # Logging Configuration
@@ -35,6 +37,7 @@ async def lifespan(app: FastAPI):
     """
     Load models on startup and clean up on shutdown.
     """
+    # Initialize ML Models
     logger.info("Loading ML models...")
     logger.info(f"Model path: {MODEL_PATH}")
     logger.info(f"Vectorizer path: {VECTORIZER_PATH}")
@@ -59,11 +62,19 @@ async def lifespan(app: FastAPI):
         ml_models["error"] = str(e)
         ml_models["ready"] = False
 
+    # Connect to Database
+    logger.info("Connecting to MongoDB...")
+    db_connected = await db_manager.connect()
+    if not db_connected:
+        logger.warning("Database connection failed. Reports will not be available.")
+
     yield
 
-    # Clean up resources if necessary
+    # Clean up resources
+    logger.info("Shutting down...")
+    await db_manager.disconnect()
     ml_models.clear()
-    logger.info("Models unloaded.")
+    logger.info("Shutdown complete.")
 
 
 # -----------------------------
@@ -80,7 +91,103 @@ class PredictionResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     models_loaded: bool
+    database_connected: bool
     error: Optional[str] = None
+
+
+class AttachmentInfo(BaseModel):
+    """Model for file attachment information"""
+
+    filename: str = Field(..., example="BITDEFENDER.txt")
+    content_type: str = Field(..., example="text/plain")
+    size: int = Field(..., example=23)
+    sha256: str = Field(
+        ..., example="6f2eda4c0fa513cb4081ed255744531acbaa5c0e08d7d60dec7789704ff4afbc"
+    )
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "filename": "BITDEFENDER.txt",
+                "content_type": "text/plain",
+                "size": 23,
+                "sha256": "6f2eda4c0fa513cb4081ed255744531acbaa5c0e08d7d60dec7789704ff4afbc",
+            }
+        }
+
+
+class ReportResponse(BaseModel):
+    """Model for a single prediction report"""
+
+    id: str = Field(alias="_id", example="6938b2d719aeb1dd9e914755")
+    subject: str = Field(..., example="testsubject")
+    body: str = Field(..., example="this is test email body")
+    prediction: str = Field(..., example="spam")
+    confidence: float = Field(..., example=0.9391)
+    spam_probability: float = Field(..., example=0.9391)
+    ham_probability: float = Field(..., example=0.0609)
+    timestamp: str = Field(..., example="2025-12-09T23:37:59.433000")
+    attachments_info: Optional[List[AttachmentInfo]] = None
+
+    class Config:
+        populate_by_name = True
+        json_schema_extra = {
+            "example": {
+                "_id": "6938b2d719aeb1dd9e914755",
+                "subject": "testsubject",
+                "body": "this is test email body",
+                "prediction": "spam",
+                "confidence": 0.9391,
+                "spam_probability": 0.9391,
+                "ham_probability": 0.0609,
+                "timestamp": "2025-12-09T23:37:59.433000",
+            }
+        }
+
+
+class AllReportsResponse(BaseModel):
+    """Model for all reports response"""
+
+    total: int = Field(..., example=2)
+    reports: List[Dict[str, Any]] = Field(...)
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "total": 2,
+                "reports": [
+                    {
+                        "_id": "6938b2d719aeb1dd9e914755",
+                        "subject": "testsubject",
+                        "body": "this is test email body",
+                        "prediction": "spam",
+                        "confidence": 0.9391,
+                        "spam_probability": 0.9391,
+                        "ham_probability": 0.0609,
+                        "timestamp": "2025-12-09T23:37:59.433000",
+                    },
+                    {
+                        "_id": "6938b2a719aeb1dd9e914754",
+                        "subject": "asdasdasdasd",
+                        "body": "asdasdasdasd",
+                        "prediction": "spam",
+                        "confidence": 0.6524,
+                        "spam_probability": 0.6524,
+                        "ham_probability": 0.3476,
+                        "attachments_info": [
+                            {
+                                "filename": "samplefile.txt",
+                                "content_type": "text/plain",
+                                "size": 23,
+                                "sha256": "6f2eda4c0fa513cb4081ed255744531acbaa5c0e08d7d60dec7789704ff4afbc",
+                                "malicious_score": 0.6678,
+                            }
+                        ],
+                        "timestamp": "2025-12-09T23:37:11.548000",
+                    },
+                ],
+            }
+        }
 
 
 # -----------------------------
@@ -184,9 +291,11 @@ async def home():
 @app.get("/health", response_model=HealthResponse, tags=["Health"])
 async def health_check():
     is_ready = ml_models.get("ready", False)
+    db_connected = db_manager.is_connected
     return {
-        "status": "healthy" if is_ready else "unhealthy",
+        "status": "healthy" if (is_ready and db_connected) else "unhealthy",
         "models_loaded": is_ready,
+        "database_connected": db_connected,
         "error": ml_models.get("error"),
     }
 
@@ -218,30 +327,185 @@ async def predict(
     if files:
         for file in files:
             if file.filename:  # Check if file actually has content
-                # Read file metadata
+                # Read file content and calculate hash
                 file_size = 0
+                sha256_hash = None
                 try:
-                    # In a real scenario, you might scan the file content here
-                    # Move to end to get size, then reset
-                    await file.seek(0, os.SEEK_END)
-                    file_size = file.tell()
+                    # Read file content
+                    file_content = await file.read()
+                    file_size = len(file_content)
+
+                    # Calculate SHA256 hash
+                    hash_object = hashlib.sha256(file_content)
+                    sha256_hash = hash_object.hexdigest()
+
+                    # Reset file pointer for potential future use
                     await file.seek(0)
+
+                    logger.info(
+                        f"Processed attachment: {file.filename} "
+                        f"(size: {file_size} bytes, SHA256: {sha256_hash})"
+                    )
                 except Exception as e:
-                    logger.warning(f"Error reading file {file.filename}: {e}")
+                    logger.warning(f"Error processing file {file.filename}: {e}")
 
                 attachments_info.append(
                     {
                         "filename": file.filename,
                         "content_type": file.content_type,
                         "size": file_size,
+                        "sha256": sha256_hash,
+                        "malicious_score": 0.0,  # Placeholder for future use
                     }
                 )
 
-    return await run_prediction(
+    # Run prediction
+    result = await run_prediction(
         subject.strip(),
         body.strip(),
         attachments_info if attachments_info else None,
     )
+
+    # Save to database only after successful prediction
+    try:
+        if db_manager.is_connected:
+            # Prepare document for database
+            db_document = {
+                "subject": subject.strip(),
+                "body": body.strip(),
+                "prediction": result["prediction"],
+                "confidence": result["confidence"],
+                "spam_probability": result["spam_probability"],
+                "ham_probability": result["ham_probability"],
+            }
+
+            if attachments_info:
+                db_document["attachments_info"] = attachments_info
+
+            # Save to database
+            saved_id = await db_manager.save_prediction(db_document)
+            if saved_id:
+                logger.info(f"Prediction saved to database with ID: {saved_id}")
+            else:
+                logger.warning("Failed to save prediction to database")
+        else:
+            logger.warning("Database not connected. Prediction not saved.")
+    except Exception as db_error:
+        # Log error but don't fail the request
+        logger.error(f"Database error during save: {db_error}", exc_info=True)
+
+    return result
+
+
+@app.get("/reports", response_model=AllReportsResponse, tags=["Reports"])
+async def get_all_reports():
+    """
+    Retrieve all prediction reports from the database.
+
+    Returns a list of all stored predictions with metadata including:
+    - Email subject and body
+    - Prediction verdict (spam/ham)
+    - Confidence scores
+    - Attachment information (if present) with SHA256 hashes
+    - Timestamp of prediction
+
+    The reports are sorted by timestamp in descending order (newest first).
+    """
+    try:
+        # Check database connection
+        if not db_manager.is_connected:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database is not connected. Reports are unavailable.",
+            )
+
+        # Fetch all reports
+        reports = await db_manager.get_all_reports()
+
+        if reports is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to retrieve reports from database.",
+            )
+
+        return {
+            "total": len(reports),
+            "reports": reports,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in /reports endpoint: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred while fetching reports: {str(e)}",
+        )
+
+
+@app.get("/report", response_model=ReportResponse, tags=["Reports"])
+async def get_report_by_id(
+    id: str = Query(
+        ..., description="Report ID to retrieve", example="6938b2d719aeb1dd9e914755"
+    )
+):
+    """
+    Retrieve a single prediction report by its unique ID.
+
+    Returns detailed information about a specific prediction including:
+    - Email subject and body
+    - Prediction verdict (spam/ham) with confidence scores
+    - Attachment information (filename, content type, size, SHA256 hash)
+    - Timestamp of when the prediction was made
+
+    **Parameters:**
+    - **id**: The MongoDB ObjectId of the report (24-character hexadecimal string)
+
+    **Example:**
+    ```
+    GET /report?id=6938b2d719aeb1dd9e914755
+    ```
+
+    **Errors:**
+    - 422: Missing or empty ID parameter
+    - 404: Report with specified ID not found
+    - 503: Database not connected
+    - 500: Internal server error
+    """
+    try:
+        # Validate ID parameter
+        if not id or not id.strip():
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Report ID parameter is required and cannot be empty.",
+            )
+
+        # Check database connection
+        if not db_manager.is_connected:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Database is not connected. Reports are unavailable.",
+            )
+
+        # Fetch report by ID
+        report = await db_manager.get_report_by_id(id.strip())
+
+        if report is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Report with ID '{id}' not found. Please check the ID and try again.",
+            )
+
+        return report
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in /report endpoint: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred while fetching the report: {str(e)}",
+        )
 
 
 if __name__ == "__main__":

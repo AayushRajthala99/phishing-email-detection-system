@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.4
 # Stage 1: Install dependencies
 FROM node:22-alpine AS deps
 WORKDIR /app
@@ -5,26 +6,24 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies with cache mount
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci
 
 # Stage 2: Build the application
 FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Accept build argument for client-side env
-# Passing URL as argument because at build time it sets the value
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_TELEMETRY_DISABLED=1
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
 
 # Copy source code
 COPY . .
-
-# Set environment variable for standalone build
-ENV NEXT_TELEMETRY_DISABLED=1
 
 # Build Next.js app (creates standalone output)
 RUN npm run build
@@ -37,8 +36,8 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Create non-root user
-RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
 
 # Copy public assets
 COPY --from=builder /app/public ./public
@@ -62,5 +61,3 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 
 # Start the Next.js server
 CMD ["node", "server.js"]
-
-#just changing so that I can push and setup git - Rabin
