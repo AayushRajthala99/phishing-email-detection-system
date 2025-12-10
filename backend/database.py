@@ -13,6 +13,7 @@ from cache import cache
 
 try:
     from config import settings
+
     USE_CONFIG = True
 except ImportError:
     USE_CONFIG = False
@@ -151,10 +152,10 @@ class DatabaseManager:
             result = await self.db.predictions.insert_one(document)
 
             inserted_id = str(result.inserted_id)
-            
+
             # Invalidate cache since we have new data
             cache.delete("all_reports")
-            
+
             logger.info(f"Prediction saved successfully with ID: {inserted_id}")
             return inserted_id
 
@@ -162,11 +163,13 @@ class DatabaseManager:
             logger.error(f"Failed to save prediction: {e}", exc_info=True)
             return None
 
-    async def get_all_reports(self, use_cache: bool = True) -> Optional[List[Dict[str, Any]]]:
+    async def get_all_reports(
+        self, use_cache: bool = True
+    ) -> Optional[List[Dict[str, Any]]]:
         """
         Retrieve all prediction reports from database.
         Returns list of reports or None on failure.
-        
+
         Args:
             use_cache: Whether to use cached results
         """
@@ -182,19 +185,21 @@ class DatabaseManager:
                 if cached is not None:
                     logger.debug(f"Cache hit for all reports ({len(cached)} reports)")
                     return cached
-            
+
             # Fetch all documents, sorted by timestamp (newest first)
             cursor = self.db.predictions.find().sort("timestamp", -1)
             reports = await cursor.to_list(length=None)
 
-            # Convert ObjectId to string for JSON serialization
+            # Convert ObjectId and datetime to string for JSON serialization
             for report in reports:
                 report["_id"] = str(report["_id"])
+                if "timestamp" in report and isinstance(report["timestamp"], datetime):
+                    report["timestamp"] = report["timestamp"].isoformat()
 
             # Cache the results
             if use_cache:
                 cache.set(cache_key, reports, ttl=60)  # Cache for 1 minute
-            
+
             logger.info(f"Retrieved {len(reports)} reports from database")
             return reports
 
@@ -202,7 +207,9 @@ class DatabaseManager:
             logger.error(f"Failed to fetch reports: {e}", exc_info=True)
             return None
 
-    async def get_report_by_id(self, report_id: str, use_cache: bool = True) -> Optional[Dict[str, Any]]:
+    async def get_report_by_id(
+        self, report_id: str, use_cache: bool = True
+    ) -> Optional[Dict[str, Any]]:
         """
         Retrieve a single prediction report by ID.
 
@@ -225,7 +232,7 @@ class DatabaseManager:
                 if cached is not None:
                     logger.debug(f"Cache hit for report {report_id}")
                     return cached
-            
+
             from bson import ObjectId
             from bson.errors import InvalidId
 
@@ -240,13 +247,15 @@ class DatabaseManager:
             report = await self.db.predictions.find_one({"_id": object_id})
 
             if report:
-                # Convert ObjectId to string
+                # Convert ObjectId and datetime to string
                 report["_id"] = str(report["_id"])
-                
+                if "timestamp" in report and isinstance(report["timestamp"], datetime):
+                    report["timestamp"] = report["timestamp"].isoformat()
+
                 # Cache the result
                 if use_cache:
                     cache.set(cache_key, report, ttl=300)  # Cache for 5 minutes
-                
+
                 logger.info(f"Retrieved report with ID: {report_id}")
             else:
                 logger.info(f"No report found with ID: {report_id}")
