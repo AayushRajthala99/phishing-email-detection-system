@@ -8,6 +8,7 @@ A ML-powered phishing email detection system that uses machine learning to detec
 [![MongoDB](https://img.shields.io/badge/MongoDB-7.0-green.svg)](https://www.mongodb.com/)
 [![Docker](https://img.shields.io/badge/Docker-Compose-blue.svg)](https://www.docker.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![PhishingEmailDetectionSystem](https://github.com/AayushRajthala99/phishing-email-detection-system/actions/workflows/master.yml/badge.svg?branch=master)](https://github.com/AayushRajthala99/phishing-email-detection-system/actions/workflows/master.yml)
 
 ---
 
