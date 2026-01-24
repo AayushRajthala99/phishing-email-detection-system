@@ -51,10 +51,10 @@ export default function PhishingDetector() {
   // Get the current protocol (e.g., "http:" or "https:") or default to https:
   const protocol = window.location.protocol || "http:";
 
-  let API_URL =
-    protocol +
+  let API_URL =""+
+    ((protocol +
     "//" +
-    (window.location.hostname || process.env.NEXT_PUBLIC_API_URL) +
+    window.location.hostname) || process.env.NEXT_PUBLIC_API_URL) +
     ":" +
     process.env.NEXT_PUBLIC_API_PORT;
 

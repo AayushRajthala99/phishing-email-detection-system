@@ -15,15 +15,10 @@ FROM node:22-alpine AS builder
 WORKDIR /app
 
 # Accept build argument for client-side env
-<<<<<<< HEAD
-# Passing URL as argument because at build time it sets the value
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
-=======
-ARG NEXT_PUBLIC_API_URL
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_PORT=$NEXT_PUBLIC_API_PORT
 ENV NEXT_TELEMETRY_DISABLED=1
->>>>>>> 75b427517fb5acbfd1d8f020bd032d5ffdfedaa6
 
 # Copy dependencies from deps stage
 COPY --from=deps /app/node_modules ./node_modules
