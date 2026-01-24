@@ -38,6 +38,14 @@ interface PredictionResult {
   }>;
 }
 
+export const getApiUrl = () => {
+  if (typeof window === "undefined") {
+    return `${process.env.NEXT_PUBLIC_API_URL}:${process.env.NEXT_PUBLIC_API_PORT}`;
+  }
+
+  return `${window.location.protocol}//${window.location.hostname}:${process.env.NEXT_PUBLIC_API_PORT}`;
+};
+
 export default function PhishingDetector() {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -48,16 +56,8 @@ export default function PhishingDetector() {
 
   // Replace with your FastAPI backend URL
   // const API_URL = process.env.NEXT_PUBLIC_API_URL
-  // Get the current protocol (e.g., "http:" or "https:") or default to https:
-  const protocol = window.location.protocol || "http:";
-
-  let API_URL =""+
-    ((protocol +
-    "//" +
-    window.location.hostname) || process.env.NEXT_PUBLIC_API_URL) +
-    ":" +
-    process.env.NEXT_PUBLIC_API_PORT;
-
+  const API_URL = getApiUrl();
+  
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       setFiles(Array.from(e.target.files));
