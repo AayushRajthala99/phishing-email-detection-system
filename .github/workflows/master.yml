@@ -22,6 +22,7 @@ jobs:
 
       - name: Stop and Remove Old Containers
         run: docker compose down --remove-orphans -v
+        shell: bash
 
       - name: Prune Old Docker Images (Clear Cache)
         # The -a flag removes all unused images (not just dangling)
