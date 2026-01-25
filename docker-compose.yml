@@ -6,8 +6,8 @@ services:
     restart: always
     command: ["mongod", "--quiet", "--logpath", "/dev/null"]
     environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-securepassword123}
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
       MONGO_INITDB_DATABASE: phishing_detection
     volumes:
       - mongodb_data:/data/db
@@ -42,8 +42,8 @@ services:
     environment:
       MONGO_HOST: mongodb
       MONGO_PORT: 27017
-      MONGO_USERNAME: ${MONGO_ROOT_USERNAME:-admin}
-      MONGO_PASSWORD: ${MONGO_ROOT_PASSWORD:-securepassword123}
+      MONGO_USERNAME: ${MONGO_ROOT_USERNAME}
+      MONGO_PASSWORD: ${MONGO_ROOT_PASSWORD}
       MONGO_DB_NAME: phishing_detection
     depends_on:
       mongodb:

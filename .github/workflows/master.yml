@@ -31,3 +31,6 @@ jobs:
 
       - name: Build and Deploy with Docker Compose
         run: docker compose up -d --build
+        env:
+          MONGO_ROOT_USERNAME: ${{ secrets.MONGO_ROOT_USERNAME }}
+          MONGO_ROOT_PASSWORD: ${{ secrets.MONGO_ROOT_PASSWORD }}
