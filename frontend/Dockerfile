@@ -17,6 +17,7 @@ WORKDIR /app
 # Accept build argument for client-side env
 ARG NEXT_PUBLIC_API_URL
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ENV NEXT_PUBLIC_API_PORT=$NEXT_PUBLIC_API_PORT
 ENV NEXT_TELEMETRY_DISABLED=1
 
 # Copy dependencies from deps stage
@@ -61,3 +62,5 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
 
 # Start the Next.js server
 CMD ["node", "server.js"]
+
+#just changing so that I can push and setup git - Rabin
