@@ -10,7 +10,16 @@ from contextlib import asynccontextmanager
 from typing import Optional, List, Dict, Any
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
-from fastapi import FastAPI, HTTPException, status, File, UploadFile, Form, Query
+from fastapi import (
+    FastAPI,
+    HTTPException,
+    status,
+    File,
+    UploadFile,
+    Form,
+    Query,
+    Request,
+)
 
 
 # -----------------------------
@@ -116,6 +125,7 @@ class AttachmentInfo(BaseModel):
     sha256: str = Field(
         ..., example="6f2eda4c0fa513cb4081ed255744531acbaa5c0e08d7d60dec7789704ff4afbc"
     )
+    malicious_score: float = Field(default=0.0, example=0.6678)
 
     class Config:
         json_schema_extra = {
@@ -124,6 +134,7 @@ class AttachmentInfo(BaseModel):
                 "content_type": "text/plain",
                 "size": 23,
                 "sha256": "6f2eda4c0fa513cb4081ed255744531acbaa5c0e08d7d60dec7789704ff4afbc",
+                "malicious_score": 0.6678,
             }
         }
 
@@ -564,7 +575,7 @@ async def predict(
 
 
 @app.get("/reports", response_model=AllReportsResponse, tags=["Reports"])
-async def get_all_reports():
+async def get_all_reports(request: Request):
     """
     Retrieve all prediction reports from the database.
 
@@ -577,6 +588,13 @@ async def get_all_reports():
 
     The reports are sorted by timestamp in descending order (newest first).
     """
+    # Reject any query parameters
+    if request.query_params:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="This endpoint does not accept any query parameters.",
+        )
+
     try:
         # Check database connection
         if not db_manager.is_connected:
