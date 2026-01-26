@@ -45,6 +45,7 @@ services:
       MONGO_USERNAME: ${MONGO_ROOT_USERNAME}
       MONGO_PASSWORD: ${MONGO_ROOT_PASSWORD}
       MONGO_DB_NAME: phishing_detection
+      VT_API_KEY: ${VT_API_KEY}
     depends_on:
       mongodb:
         condition: service_healthy

@@ -34,3 +34,4 @@ jobs:
         env:
           MONGO_ROOT_USERNAME: ${{ secrets.MONGO_ROOT_USERNAME }}
           MONGO_ROOT_PASSWORD: ${{ secrets.MONGO_ROOT_PASSWORD }}
+          VT_API_KEY: ${{ secrets.VT_API_KEY }}

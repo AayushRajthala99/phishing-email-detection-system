@@ -1,13 +1,17 @@
 import os
+import time
 import joblib
 import logging
 import hashlib
+import asyncio
+import aiohttp
+from database import db_manager
 from contextlib import asynccontextmanager
 from typing import Optional, List, Dict, Any
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 from fastapi import FastAPI, HTTPException, status, File, UploadFile, Form, Query
-from database import db_manager
+
 
 # -----------------------------
 # Logging Configuration
@@ -24,6 +28,14 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODELS_DIR = os.path.join(BASE_DIR, "models")
 MODEL_PATH = os.path.join(MODELS_DIR, "spam_classifier_model.pkl")
 VECTORIZER_PATH = os.path.join(MODELS_DIR, "tfidf_vectorizer.pkl")
+
+# VirusTotal Configuration
+VT_API_KEY = os.getenv("VT_API_KEY")
+VT_BASE = "https://www.virustotal.com/api/v3"
+VT_HEADERS = {"x-apikey": VT_API_KEY} if VT_API_KEY else {}
+ANALYSIS_POLL_INTERVAL = 15  # seconds
+ANALYSIS_TIMEOUT = 180  # seconds
+MAX_VT_CONCURRENCY = 2
 
 # Global state to hold models
 ml_models: Dict[str, Any] = {}
@@ -210,6 +222,178 @@ app.add_middleware(
 
 
 # -----------------------------
+# VirusTotal Integration
+# -----------------------------
+async def get_vt_file_report(
+    session: aiohttp.ClientSession, sha256: str
+) -> Optional[Dict]:
+    """Check if file analysis already exists on VirusTotal"""
+    if not VT_API_KEY:
+        logger.warning("VT_API_KEY not configured. Skipping VT scan.")
+        return None
+
+    url = f"{VT_BASE}/files/{sha256}"
+    try:
+        async with session.get(url) as resp:
+            if resp.status == 200:
+                return await resp.json()
+            elif resp.status == 404:
+                return None
+            else:
+                logger.error(
+                    f"VT file report failed: {resp.status} {await resp.text()}"
+                )
+                return None
+    except Exception as e:
+        logger.error(f"Error getting VT file report: {e}")
+        return None
+
+
+async def upload_file_to_vt(
+    session: aiohttp.ClientSession, file_content: bytes, filename: str
+) -> Optional[str]:
+    """Upload file to VirusTotal and return analysis ID"""
+    if not VT_API_KEY:
+        return None
+
+    url = f"{VT_BASE}/files"
+    data = aiohttp.FormData()
+    data.add_field("file", file_content, filename=filename)
+
+    try:
+        async with session.post(url, data=data) as resp:
+            if resp.status not in (200, 202):
+                logger.error(f"VT upload failed: {resp.status} {await resp.text()}")
+                return None
+
+            json_resp = await resp.json()
+            return json_resp["data"]["id"]  # analysis_id
+    except Exception as e:
+        logger.error(f"Error uploading to VT: {e}")
+        return None
+
+
+async def get_vt_analysis(
+    session: aiohttp.ClientSession, analysis_id: str
+) -> Optional[Dict]:
+    """Get analysis result from VirusTotal"""
+    if not VT_API_KEY:
+        return None
+
+    url = f"{VT_BASE}/analyses/{analysis_id}"
+    try:
+        async with session.get(url) as resp:
+            if resp.status != 200:
+                logger.error(f"VT analysis fetch failed: {resp.status}")
+                return None
+            return await resp.json()
+    except Exception as e:
+        logger.error(f"Error getting VT analysis: {e}")
+        return None
+
+
+async def wait_for_vt_analysis(
+    session: aiohttp.ClientSession, analysis_id: str
+) -> Optional[Dict]:
+    """Wait for VirusTotal analysis to complete"""
+    start = time.time()
+
+    while True:
+        analysis = await get_vt_analysis(session, analysis_id)
+
+        if not analysis:
+            return None
+
+        status_value = analysis["data"]["attributes"]["status"]
+
+        if status_value == "completed":
+            return analysis
+
+        if time.time() - start > ANALYSIS_TIMEOUT:
+            logger.error("VT analysis timed out")
+            return None
+
+        await asyncio.sleep(ANALYSIS_POLL_INTERVAL)
+
+
+def extract_vt_score(report: Dict) -> float:
+    """Extract malicious score from VT report"""
+    try:
+        stats = report["data"]["attributes"]["last_analysis_stats"]
+        total = sum(stats.values())
+
+        if total == 0:
+            return 0.0
+
+        malicious = stats.get("malicious", 0)
+        suspicious = stats.get("suspicious", 0)
+
+        # Calculate malicious ratio (malicious + suspicious) / total
+        malicious_ratio = (malicious + suspicious) / total
+
+        return round(malicious_ratio, 4)
+    except Exception as e:
+        logger.error(f"Error extracting VT score: {e}")
+        return 0.0
+
+
+async def scan_file_with_vt(
+    file_content: bytes, filename: str, sha256_hash: str
+) -> float:
+    """
+    Scan file with VirusTotal
+    Returns malicious score (0.0 to 1.0)
+    """
+    if not VT_API_KEY:
+        logger.warning("VT_API_KEY not set. Skipping VirusTotal scan.")
+        return 0.0
+
+    try:
+        async with aiohttp.ClientSession(headers=VT_HEADERS) as session:
+            # Step 1: Check if file already analyzed
+            logger.info(
+                f"Checking VT for existing analysis of {filename} (SHA256: {sha256_hash})"
+            )
+            report = await get_vt_file_report(session, sha256_hash)
+
+            if report:
+                logger.info(f"Found existing VT report for {filename}")
+                return extract_vt_score(report)
+
+            # Step 2: Upload file for analysis
+            logger.info(f"No existing report found. Uploading {filename} to VT...")
+            analysis_id = await upload_file_to_vt(session, file_content, filename)
+
+            if not analysis_id:
+                logger.error(f"Failed to upload {filename} to VT")
+                return 0.0
+
+            logger.info(
+                f"File uploaded. Analysis ID: {analysis_id}. Waiting for completion..."
+            )
+
+            # Step 3: Wait for analysis to complete
+            await wait_for_vt_analysis(session, analysis_id)
+
+            # Step 4: Get final report
+            report = await get_vt_file_report(session, sha256_hash)
+
+            if report:
+                score = extract_vt_score(report)
+                logger.info(
+                    f"VT analysis complete for {filename}. Malicious score: {score}"
+                )
+                return score
+            else:
+                logger.error(f"Failed to retrieve final report for {filename}")
+                return 0.0
+
+    except Exception as e:
+        logger.error(f"Error during VT scan of {filename}: {e}", exc_info=True)
+        return 0.0
+
+
+# -----------------------------
 # Prediction Logic
 # -----------------------------
 async def run_prediction(
@@ -223,33 +407,18 @@ async def run_prediction(
 
     try:
         text = f"{subject} {body}".strip()
-        # logger.info(f"Processing text: {text[:100]}...")  # Log first 100 chars
 
         vectorizer = ml_models["vectorizer"]
         model = ml_models["classifier"]
 
-        # Log attachment information if present
-        # if attachments_info:
-        # logger.info(f"Processing email with {len(attachments_info)} attachment(s)")
-        # for att in attachments_info:
-        # logger.info(
-        # f"  - {att.get('filename')} ({att.get('size')} bytes, type: {att.get('content_type')})"
-        # )
-
         # Transform and Predict
-        # logger.info("Transforming text with vectorizer...")
         text_tfidf = vectorizer.transform([text])
-        # logger.info(f"Text transformed, shape: {text_tfidf.shape}")
 
-        # logger.info("Making prediction...")
         prediction = model.predict(text_tfidf)[0]
-        # logger.info(f"Prediction result: {prediction}")
 
         # Get Probabilities
         if hasattr(model, "predict_proba"):
             probabilities = model.predict_proba(text_tfidf)[0]
-            # logger.info(f"Probabilities: {probabilities}")
-            # Assuming class 0 is ham, 1 is spam (standard sklearn behavior)
             ham_prob = float(probabilities[0])
             spam_prob = float(probabilities[1])
         else:
@@ -269,7 +438,6 @@ async def run_prediction(
         if attachments_info:
             result["attachments_info"] = attachments_info
 
-        logger.info(f"Final result: {result}")
         return result
 
     except Exception as e:
@@ -306,10 +474,6 @@ async def predict(
     body: str = Form(...),
     files: List[UploadFile] = File(default=[]),
 ):
-    logger.info(
-        f"Received prediction request - Subject: '{subject}', Body length: {len(body)}, Files: {len(files)}"
-    )
-
     # Validate inputs
     if not subject or not subject.strip():
         raise HTTPException(
@@ -330,6 +494,8 @@ async def predict(
                 # Read file content and calculate hash
                 file_size = 0
                 sha256_hash = None
+                malicious_score = 0.0
+
                 try:
                     # Read file content
                     file_content = await file.read()
@@ -339,15 +505,15 @@ async def predict(
                     hash_object = hashlib.sha256(file_content)
                     sha256_hash = hash_object.hexdigest()
 
-                    # Reset file pointer for potential future use
-                    await file.seek(0)
-
-                    logger.info(
-                        f"Processed attachment: {file.filename} "
-                        f"(size: {file_size} bytes, SHA256: {sha256_hash})"
+                    # Scan with VirusTotal
+                    malicious_score = await scan_file_with_vt(
+                        file_content, file.filename, sha256_hash
                     )
+
                 except Exception as e:
-                    logger.warning(f"Error processing file {file.filename}: {e}")
+                    logger.error(
+                        f"Error processing file {file.filename}: {e}", exc_info=True
+                    )
 
                 attachments_info.append(
                     {
@@ -355,7 +521,7 @@ async def predict(
                         "content_type": file.content_type,
                         "size": file_size,
                         "sha256": sha256_hash,
-                        "malicious_score": 0.0,  # Placeholder for future use
+                        "malicious_score": malicious_score,
                     }
                 )
 
