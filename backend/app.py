@@ -331,10 +331,6 @@ def extract_vt_score(report: Dict) -> float:
         # Calculate malicious ratio (malicious + suspicious) / total
         malicious_ratio = (malicious + suspicious) / total
 
-        logger.info(
-            f"VT Score - Malicious: {malicious}, Suspicious: {suspicious}, Total: {total}, Ratio: {malicious_ratio:.4f}"
-        )
-
         return round(malicious_ratio, 4)
     except Exception as e:
         logger.error(f"Error extracting VT score: {e}")
@@ -411,7 +407,6 @@ async def run_prediction(
 
     try:
         text = f"{subject} {body}".strip()
-        # logger.info(f"Processing text: {text[:100]}...")  # Log first 100 chars
 
         vectorizer = ml_models["vectorizer"]
         model = ml_models["classifier"]
@@ -443,7 +438,6 @@ async def run_prediction(
         if attachments_info:
             result["attachments_info"] = attachments_info
 
-        logger.info(f"Final result: {result}")
         return result
 
     except Exception as e:
@@ -480,10 +474,6 @@ async def predict(
     body: str = Form(...),
     files: List[UploadFile] = File(default=[]),
 ):
-    logger.info(
-        f"Received prediction request - Subject: '{subject}', Body length: {len(body)}, Files: {len(files)}"
-    )
-
     # Validate inputs
     if not subject or not subject.strip():
         raise HTTPException(
