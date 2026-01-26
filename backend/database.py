@@ -48,11 +48,11 @@ class DatabaseManager:
                 max_pool = settings.MONGO_MAX_POOL_SIZE
                 min_pool = settings.MONGO_MIN_POOL_SIZE
             else:
-                mongo_host = os.getenv("MONGO_HOST", "localhost")
-                mongo_port = int(os.getenv("MONGO_PORT", "27017"))
-                mongo_username = os.getenv("MONGO_USERNAME", "admin")
-                mongo_password = os.getenv("MONGO_PASSWORD", "securepassword123")
-                mongo_db_name = os.getenv("MONGO_DB_NAME", "phishing_detection")
+                mongo_host = os.getenv("MONGO_HOST")
+                mongo_port = int(os.getenv("MONGO_PORT"))
+                mongo_username = os.getenv("MONGO_USERNAME")
+                mongo_password = os.getenv("MONGO_PASSWORD")
+                mongo_db_name = os.getenv("MONGO_DB_NAME")
                 max_pool = 50
                 min_pool = 10
 

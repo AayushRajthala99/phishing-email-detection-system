@@ -2,6 +2,7 @@ import os
 import joblib
 import logging
 import hashlib
+import asyncio
 from contextlib import asynccontextmanager
 from typing import Optional, List, Dict, Any
 from fastapi.middleware.cors import CORSMiddleware
@@ -228,28 +229,14 @@ async def run_prediction(
         vectorizer = ml_models["vectorizer"]
         model = ml_models["classifier"]
 
-        # Log attachment information if present
-        # if attachments_info:
-        # logger.info(f"Processing email with {len(attachments_info)} attachment(s)")
-        # for att in attachments_info:
-        # logger.info(
-        # f"  - {att.get('filename')} ({att.get('size')} bytes, type: {att.get('content_type')})"
-        # )
-
         # Transform and Predict
-        # logger.info("Transforming text with vectorizer...")
         text_tfidf = vectorizer.transform([text])
-        # logger.info(f"Text transformed, shape: {text_tfidf.shape}")
 
-        # logger.info("Making prediction...")
         prediction = model.predict(text_tfidf)[0]
-        # logger.info(f"Prediction result: {prediction}")
 
         # Get Probabilities
         if hasattr(model, "predict_proba"):
             probabilities = model.predict_proba(text_tfidf)[0]
-            # logger.info(f"Probabilities: {probabilities}")
-            # Assuming class 0 is ham, 1 is spam (standard sklearn behavior)
             ham_prob = float(probabilities[0])
             spam_prob = float(probabilities[1])
         else:
