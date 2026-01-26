@@ -29,8 +29,12 @@ class Settings(BaseSettings):
     # MongoDB
     MONGO_HOST: str = "localhost"
     MONGO_PORT: int = 27017
-    MONGO_USERNAME: str  # Required - no default for security
-    MONGO_PASSWORD: str  # Required - no default for security
+    MONGO_USERNAME: str = os.getenv(
+        "MONGO_USERNAME", ""
+    )  # Required - no default for security
+    MONGO_PASSWORD: str = os.getenv(
+        "MONGO_PASSWORD", ""
+    )  # Required - no default for security
     MONGO_DB_NAME: str = "phishing_detection"
     MONGO_MAX_POOL_SIZE: int = 50
     MONGO_MIN_POOL_SIZE: int = 10
