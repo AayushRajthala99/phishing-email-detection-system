@@ -20,18 +20,14 @@ jobs:
       - name: Check out code
         uses: actions/checkout@v4
 
-      - name: Stop and Remove Old Containers
-        run: docker compose down --remove-orphans -v
-        shell: bash
-
-      - name: Prune Old Docker Images (Clear Cache)
-        # The -a flag removes all unused images (not just dangling)
-        # The -f flag forces the removal without a prompt
-        run: docker image prune -a -f
+      - name: Stop old containers and keep volumes & cache
+        run: docker compose down --remove-orphans
 
       - name: Build and Deploy with Docker Compose
         run: docker compose up -d --build
         env:
+          DOCKER_BUILDKIT: 1
+          COMPOSE_DOCKER_CLI_BUILD: 1
           MONGO_ROOT_USERNAME: ${{ secrets.MONGO_ROOT_USERNAME }}
           MONGO_ROOT_PASSWORD: ${{ secrets.MONGO_ROOT_PASSWORD }}
           VT_API_KEY: ${{ secrets.VT_API_KEY }}
