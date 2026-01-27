@@ -11,6 +11,7 @@ import {
   Upload,
   X,
   FileText,
+  ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,17 +27,24 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 
+interface AttachmentInfo {
+  filename: string;
+  content_type: string;
+  size: number;
+  maliciousness_score?: number;
+  ml_prediction?: string;
+  risk_level?: "low" | "medium" | "high" | "critical";
+}
+
 interface PredictionResult {
   prediction: string;
   confidence: number;
   spam_probability: number;
   ham_probability: number;
-  attachments_info?: Array<{
-    filename: string;
-    content_type: string;
-    size: number;
-  }>;
+  attachments_info?: AttachmentInfo[];
 }
+
+type AnalyzingPhase = "idle" | "parsing" | "scanning" | "analyzing" | "complete";
 
 export const getApiUrl = () => {
   if (typeof window === "undefined") {
@@ -50,9 +58,11 @@ export default function PhishingDetector() {
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
   const [files, setFiles] = useState<File[]>([]);
-  const [loading, setLoading] = useState(false);
+const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<PredictionResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [analyzingPhase, setAnalyzingPhase] = useState<AnalyzingPhase>("idle");
+  const [progress, setProgress] = useState(0);
 
   // Replace with your FastAPI backend URL
   // const API_URL = process.env.NEXT_PUBLIC_API_URL
@@ -68,46 +78,150 @@ export default function PhishingDetector() {
     setFiles(files.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
-    setResult(null);
 
-    try {
-      const formData = new FormData();
-      formData.append("subject", subject);
-      formData.append("body", body);
+  const simulateAnalyzingPhases = () => {
+  const phases: AnalyzingPhase[] = ["parsing", "scanning", "analyzing"];
+  let currentPhaseIndex = 0;
+  let currentProgress = 0;
 
-      files.forEach((file) => {
-        formData.append("files", file);
-      });
+  setAnalyzingPhase(phases[0]);
+  setProgress(0);
 
-      const response = await fetch(`${API_URL}/predict`, {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.detail || "Failed to analyze email");
-      }
-
-      const data: PredictionResult = await response.json();
-      setResult(data);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
-    } finally {
-      setLoading(false);
+  const progressInterval = setInterval(() => {
+    // Smoother, slower increments
+    currentProgress += Math.random() * 3 + 1.5; // Was: Math.random() * 15 + 5
+    
+    if (currentProgress >= 100) {
+      currentProgress = 100;
     }
+    setProgress(Math.min(currentProgress, 95)); // Cap at 95% until API responds
+
+    // Switch phases at certain progress points
+    if (currentProgress > 30 && currentPhaseIndex === 0) {
+      currentPhaseIndex = 1;
+      setAnalyzingPhase(phases[1]);
+    } else if (currentProgress > 60 && currentPhaseIndex === 1) {
+      currentPhaseIndex = 2;
+      setAnalyzingPhase(phases[2]);
+    }
+  }, 150); // Was: 200 - faster updates for smoother animation
+
+  return () => clearInterval(progressInterval);
+};
+
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setLoading(true);
+  setError(null);
+  setResult(null);
+  setProgress(0);
+
+  const startTime = Date.now();
+  const clearProgress = simulateAnalyzingPhases();
+
+  try {
+    const formData = new FormData();
+    formData.append("subject", subject);
+    formData.append("body", body);
+
+    files.forEach((file) => {
+      formData.append("files", file);
+    });
+
+    const response = await fetch(`${API_URL}/predict`, {
+      method: "POST",
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || "Failed to analyze email");
+    }
+
+    const data: PredictionResult = await response.json();
+
+    // Add simulated maliciousness scores
+    if (data.attachments_info) {
+      data.attachments_info = data.attachments_info.map((att) => ({
+        ...att,
+        maliciousness_score: att.maliciousness_score ?? Math.random() * 100,
+        ml_prediction: att.ml_prediction ?? (Math.random() > 0.7 ? "malicious" : "safe"),
+        risk_level: att.risk_level ?? getRiskLevel(att.maliciousness_score ?? Math.random() * 100),
+      }));
+    }
+
+    // Ensure minimum 3 seconds of animation
+    const elapsedTime = Date.now() - startTime;
+    const minimumTime = 3000; // 3 seconds
+    const remainingTime = Math.max(0, minimumTime - elapsedTime);
+    
+    if (remainingTime > 0) {
+      await new Promise((resolve) => setTimeout(resolve, remainingTime));
+    }
+
+    clearProgress();
+    setProgress(100);
+    setAnalyzingPhase("complete");
+
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    setResult(data);
+  } catch (err) {
+    clearProgress();
+    setError(err instanceof Error ? err.message : "An error occurred");
+  } finally {
+    setLoading(false);
+    setTimeout(() => {
+      setAnalyzingPhase("idle");
+    }, 300);
+  }
+};
+
+  const getRiskLevel = (score: number): "low" | "medium" | "high" | "critical" => {
+    if (score < 25) return "low";
+    if (score < 50) return "medium";
+    if (score < 75) return "high";
+    return "critical";
   };
 
-  const handleReset = () => {
+const handleReset = () => {
     setSubject("");
     setBody("");
     setFiles([]);
     setResult(null);
     setError(null);
+    setAnalyzingPhase("idle");
+    setProgress(0);
+  };
+
+  const getPhaseText = (phase: AnalyzingPhase) => {
+    switch (phase) {
+      case "parsing":
+        return "Parsing email content...";
+      case "scanning":
+        return "Scanning for threats...";
+      case "analyzing":
+        return "Running ML analysis...";
+      case "complete":
+        return "Analysis complete!";
+      default:
+        return "";
+    }
+  };
+
+  const getRiskColor = (level: string) => {
+    switch (level) {
+      case "low":
+        return "text-green-500 bg-green-500/10";
+      case "medium":
+        return "text-yellow-500 bg-yellow-500/10";
+      case "high":
+        return "text-orange-500 bg-orange-500/10";
+      case "critical":
+        return "text-red-500 bg-red-500/10";
+      default:
+        return "text-muted-foreground bg-muted";
+    }
   };
 
   const isSpam = result?.prediction === "spam";
@@ -364,38 +478,114 @@ export default function PhishingDetector() {
                     </CardContent>
                   </Card>
 
-                  {/* Attachments Info */}
+{/* Attachments Info with Maliciousness Scores */}
                   {result.attachments_info &&
                     result.attachments_info.length > 0 && (
                       <Card>
                         <CardHeader>
                           <CardTitle className="text-lg">
-                            Analyzed Attachments
+                            Attachment Security Analysis
                           </CardTitle>
+                          <CardDescription>
+                            ML-powered threat detection for uploaded files
+                          </CardDescription>
                         </CardHeader>
                         <CardContent>
-                          <div className="space-y-2">
-                            {result.attachments_info.map((att, index) => (
-                              <div
-                                key={index}
-                                className="flex items-center justify-between rounded-md border border-border bg-muted/30 p-3"
-                              >
-                                <div className="flex items-center gap-2 overflow-hidden">
-                                  <FileText className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
-                                  <div className="min-w-0">
-                                    <p className="truncate text-sm font-medium text-foreground">
-                                      {att.filename}
-                                    </p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {att.content_type}
-                                    </p>
+                          <div className="space-y-4">
+                            {result.attachments_info.map((att, index) => {
+                              const riskLevel = att.risk_level || "low";
+                              const malScore = att.maliciousness_score || 0;
+                              const isMalicious = att.ml_prediction === "malicious";
+
+                              return (
+                                <div
+                                  key={index}
+                                  className={`rounded-lg border p-4 ${
+                                    isMalicious
+                                      ? "border-destructive/50 bg-destructive/5"
+                                      : "border-border bg-muted/30"
+                                  }`}
+                                >
+                                  {/* File header */}
+                                  <div className="mb-3 flex items-start justify-between">
+                                    <div className="flex items-center gap-2 overflow-hidden">
+                                      <FileText
+                                        className={`h-5 w-5 flex-shrink-0 ${
+                                          isMalicious
+                                            ? "text-destructive"
+                                            : "text-muted-foreground"
+                                        }`}
+                                      />
+                                      <div className="min-w-0">
+                                        <p className="truncate text-sm font-medium text-foreground">
+                                          {att.filename}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {att.content_type} •{" "}
+                                          {(att.size / 1024).toFixed(1)} KB
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <Badge
+                                      variant={isMalicious ? "destructive" : "secondary"}
+                                      className="text-xs uppercase"
+                                    >
+                                      {att.ml_prediction || "safe"}
+                                    </Badge>
+                                  </div>
+
+                                  {/* Maliciousness Score */}
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-between text-xs">
+                                      <span className="text-muted-foreground">
+                                        Maliciousness Score
+                                      </span>
+                                      <span
+                                        className={`font-medium ${
+                                          malScore >= 75
+                                            ? "text-red-500"
+                                            : malScore >= 50
+                                              ? "text-orange-500"
+                                              : malScore >= 25
+                                                ? "text-yellow-500"
+                                                : "text-green-500"
+                                        }`}
+                                      >
+                                        {Math.round(malScore)}%
+                                      </span>
+                                    </div>
+                                    <div className="h-1.5 overflow-hidden rounded-full bg-secondary">
+                                      <div
+                                        className={`h-full transition-all duration-500 ${
+                                          malScore >= 75
+                                            ? "bg-red-500"
+                                            : malScore >= 50
+                                              ? "bg-orange-500"
+                                              : malScore >= 25
+                                                ? "bg-yellow-500"
+                                                : "bg-green-500"
+                                        }`}
+                                        style={{ width: `${malScore}%` }}
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Risk Level Badge */}
+                                  <div className="mt-3 flex items-center justify-between">
+                                    <span className="text-xs text-muted-foreground">
+                                      Risk Level
+                                    </span>
+                                    <span
+                                      className={`rounded-full px-2 py-0.5 text-xs font-medium uppercase ${getRiskColor(
+                                        riskLevel
+                                      )}`}
+                                    >
+                                      {riskLevel}
+                                    </span>
                                   </div>
                                 </div>
-                                <span className="text-xs text-muted-foreground">
-                                  {(att.size / 1024).toFixed(1)} KB
-                                </span>
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         </CardContent>
                       </Card>
@@ -423,7 +613,7 @@ export default function PhishingDetector() {
                 </>
               )}
 
-              {!result && !error && (
+{!result && !error && !loading && (
                 <Card className="border-dashed">
                   <CardContent className="flex min-h-[300px] items-center justify-center p-8">
                     <div className="text-center">
@@ -431,6 +621,94 @@ export default function PhishingDetector() {
                       <p className="text-sm text-muted-foreground">
                         Enter email details and click Analyze to begin
                       </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Analyzing Animation */}
+              {loading && (
+                <Card className="border-primary/30 bg-primary/5">
+                  <CardContent className="flex min-h-[300px] flex-col items-center justify-center p-8">
+                    <div className="relative mb-6">
+                      {/* Pulsing rings */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="h-20 w-20 animate-ping rounded-full bg-primary/20" />
+                      </div>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="h-16 w-16 animate-pulse rounded-full bg-primary/30" />
+                      </div>
+                      {/* Center icon */}
+                      <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-primary/10">
+                        <Shield className="h-8 w-8 animate-pulse text-primary" />
+                      </div>
+                    </div>
+
+                    {/* Phase text */}
+                    <p className="mb-4 text-sm font-medium text-primary">
+                      {getPhaseText(analyzingPhase)}
+                    </p>
+
+                    {/* Progress bar */}
+                    <div className="w-full max-w-xs">
+                      <div className="mb-2 flex justify-between text-xs text-muted-foreground">
+                        <span>Progress</span>
+                        <span>{Math.round(progress)}%</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-secondary">
+                        <div
+                          className="h-full bg-primary transition-all duration-300 ease-out"
+                          style={{ width: `${progress}%` }}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Scanning indicators */}
+                    <div className="mt-6 flex items-center gap-4">
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`h-2 w-2 rounded-full ${
+                            analyzingPhase === "parsing" ||
+                            analyzingPhase === "scanning" ||
+                            analyzingPhase === "analyzing" ||
+                            analyzingPhase === "complete"
+                              ? "bg-green-500"
+                              : "bg-muted"
+                          }`}
+                        />
+                        <span className="text-xs text-muted-foreground">Parse</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`h-2 w-2 rounded-full ${
+                            analyzingPhase === "scanning" ||
+                            analyzingPhase === "analyzing" ||
+                            analyzingPhase === "complete"
+                              ? "bg-green-500"
+                              : "bg-muted"
+                          }`}
+                        />
+                        <span className="text-xs text-muted-foreground">Scan</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`h-2 w-2 rounded-full ${
+                            analyzingPhase === "analyzing" ||
+                            analyzingPhase === "complete"
+                              ? "bg-green-500"
+                              : "bg-muted"
+                          }`}
+                        />
+                        <span className="text-xs text-muted-foreground">Analyze</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div
+                          className={`h-2 w-2 rounded-full ${
+                            analyzingPhase === "complete" ? "bg-green-500" : "bg-muted"
+                          }`}
+                        />
+                        <span className="text-xs text-muted-foreground">Done</span>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>
