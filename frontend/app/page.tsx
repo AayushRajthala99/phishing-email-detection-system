@@ -31,7 +31,7 @@ interface AttachmentInfo {
   filename: string;
   content_type: string;
   size: number;
-  maliciousness_score?: number;
+  malicious_score?: number;
   ml_prediction?: string;
   risk_level?: "low" | "medium" | "high" | "critical";
 }
@@ -140,15 +140,21 @@ const handleSubmit = async (e: React.FormEvent) => {
 
     const data: PredictionResult = await response.json();
 
-    // Add simulated maliciousness scores
-    if (data.attachments_info) {
-      data.attachments_info = data.attachments_info.map((att) => ({
-        ...att,
-        maliciousness_score: att.maliciousness_score ?? Math.random() * 100,
-        ml_prediction: att.ml_prediction ?? (Math.random() > 0.7 ? "malicious" : "safe"),
-        risk_level: att.risk_level ?? getRiskLevel(att.maliciousness_score ?? Math.random() * 100),
-      }));
-    }
+    // Process attachment info if present
+if (data.attachments_info) {
+  data.attachments_info = data.attachments_info.map((att) => {
+    // Use malicious_score from backend (note: different spelling)
+    const malScore = att.malicious_score ?? 0;
+    
+    return {
+      ...att,
+      // Only add ml_prediction if not provided by backend
+      ml_prediction: att.ml_prediction ?? (malScore > 50 ? "malicious" : "safe"),
+      // Only add risk_level if not provided by backend
+      risk_level: att.risk_level ?? getRiskLevel(malScore),
+    };
+  });
+}
 
     // Ensure minimum 3 seconds of animation
     const elapsedTime = Date.now() - startTime;
@@ -230,24 +236,6 @@ const handleReset = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
-      <header className="border-b border-border bg-card">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Shield className="h-6 w-6 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold text-foreground">
-                Phishing Detection System
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                AI-powered email security analysis
-              </p>
-            </div>
-          </div>
-        </div>
-      </header>
-
       <main className="container mx-auto px-4 py-8">
         <div className="mx-auto max-w-4xl space-y-6">
           {/* Info Banner */}
@@ -494,7 +482,7 @@ const handleReset = () => {
                           <div className="space-y-4">
                             {result.attachments_info.map((att, index) => {
                               const riskLevel = att.risk_level || "low";
-                              const malScore = att.maliciousness_score || 0;
+                              const malScore = att.malicious_score || 0;
                               const isMalicious = att.ml_prediction === "malicious";
 
                               return (
