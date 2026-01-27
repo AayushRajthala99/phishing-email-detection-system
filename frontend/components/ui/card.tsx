@@ -6,7 +6,6 @@ function Card({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card"
-      style="height:100%;"
       className={cn(
         "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
         className
@@ -66,7 +65,6 @@ function CardContent({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="card-content"
-      style="align-self: center;height: inherit;"
       className={cn("px-6", className)}
       {...props}
     />
