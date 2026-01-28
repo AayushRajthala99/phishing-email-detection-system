@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 
 const navItems = [
   { name: "Analyzer", href: "/", icon: Shield, current: true },
-  { name: "Reports", href: "#", icon: BarChart3, current: false },
+  { name: "Reports", href: "/reports", icon: BarChart3, current: false },
   { name: "History", href: "#", icon: History, current: false },
   { name: "Help", href: "#", icon: HelpCircle, current: false },
 ];
