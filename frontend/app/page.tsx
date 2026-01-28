@@ -26,6 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { getApiUrl } from "@/lib/api";
 
 interface AttachmentInfo {
   filename: string;
@@ -45,14 +46,6 @@ interface PredictionResult {
 }
 
 type AnalyzingPhase = "idle" | "parsing" | "scanning" | "analyzing" | "complete";
-
-export const getApiUrl = () => {
-  if (typeof window === "undefined") {
-    return `${process.env.NEXT_PUBLIC_API_URL}:${process.env.NEXT_PUBLIC_API_PORT}`;
-  }
-
-  return `${window.location.protocol}//${window.location.hostname}:${process.env.NEXT_PUBLIC_API_PORT}`;
-};
 
 export default function PhishingDetector() {
   const [subject, setSubject] = useState("");
