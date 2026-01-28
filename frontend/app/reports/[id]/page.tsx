@@ -19,31 +19,32 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { getApiUrl } from "@/lib/api"
 
+// Force dynamic rendering
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
 async function getReport(id: string): Promise<Report | null> {
   try {
     const apiUrl = getApiUrl()
     console.log("Fetching report from:", `${apiUrl}/report?id=${id}`)
-    // console.log("Fetching report from:", `http://peds.liger-saiph.ts.net:5000/report?id=${id}`)
     
-    // const response = await fetch(`http://peds.liger-saiph.ts.net:5000/report?id=${id}`, {
-    //   cache: "no-store",
-    //   headers: {
-    //     "Content-Type": "application/json",
-    //   },
-    // })
     const response = await fetch(`${apiUrl}/report?id=${id}`, {
       cache: "no-store",
       headers: {
         "Content-Type": "application/json",
       },
+      // Add a timeout
+      signal: AbortSignal.timeout(10000), // 10 second timeout
     })
 
     if (!response.ok) {
-      console.error("API Error:", response.status, await response.text())
+      const errorText = await response.text()
+      console.error("API Error:", response.status, errorText)
       return null
     }
 
     const data = await response.json()
+    console.log("Fetched report:", data)
     return data
   } catch (error) {
     console.error("Fetch error:", error)
