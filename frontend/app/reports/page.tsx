@@ -1,138 +1,68 @@
-"use client"
-
-import { useState, useEffect } from "react"
 import { ReportsResponse } from "@/lib/types"
 import { ReportCard } from "@/components/ui/report-card"
-import { FileText, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
+import { FileText, ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { getApiUrl } from "@/lib/api"
-import { useSearchParams } from "next/navigation"
 
-export function ReportsContent() {
-  const searchParams = useSearchParams()
-  const currentPage = Number(searchParams.get("page")) || 1
-  const pageSize = 10
+async function getReports(): Promise<ReportsResponse> {
+  try {
+    const apiUrl = getApiUrl()
+    console.log("Fetching from:", `${apiUrl}/reports`)
+    // console.log("Fetching from:", `http://peds.liger-saiph.ts.net:5000/reports`)
+    
+    // const response = await fetch(`http://peds.liger-saiph.ts.net:5000/reports`, {
+    //   cache: "no-store",
+    //   headers: {
+    //     "Content-Type": "application/json",
+    //   },
+    // })
+    const response = await fetch(`${apiUrl}/reports`, {
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    })
 
-  const [data, setData] = useState<ReportsResponse | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    async function fetchReports() {
-      setLoading(true)
-      setError(null)
-      
-      try {
-        const apiUrl = getApiUrl()
-        console.log("Fetching from:", `${apiUrl}/reports`)
-        
-        const response = await fetch(`${apiUrl}/reports`, {
-          cache: "no-store",
-          headers: {
-            "Content-Type": "application/json",
-          },
-        })
-
-        if (!response.ok) {
-          const errorText = await response.text()
-          console.error("API Error:", response.status, errorText)
-          throw new Error(`Failed to fetch reports: ${response.status}`)
-        }
-
-        const responseData = await response.json()
-        console.log("Fetched data:", responseData)
-        
-        // Handle different response formats
-        let normalizedData: ReportsResponse
-        
-        if (Array.isArray(responseData)) {
-          normalizedData = {
-            total: responseData.length,
-            reports: responseData
-          }
-        } else if (responseData.reports && Array.isArray(responseData.reports)) {
-          normalizedData = {
-            total: responseData.total || responseData.reports.length,
-            reports: responseData.reports
-          }
-        } else {
-          throw new Error("Unexpected API response format")
-        }
-        
-        setData(normalizedData)
-      } catch (err) {
-        console.error("Fetch error:", err)
-        setError(err instanceof Error ? err.message : "Failed to load reports")
-      } finally {
-        setLoading(false)
-      }
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("API Error:", response.status, errorText)
+      throw new Error(`Failed to fetch reports: ${response.status} ${errorText}`)
     }
 
-    fetchReports()
-  }, []) // Only fetch once when component mounts
-
-  if (loading) {
-    return (
-      <main className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
-          <header className="mb-8">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <FileText className="h-6 w-6 text-primary" />
-              </div>
-              <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                Reports
-              </h1>
-            </div>
-          </header>
-          <div className="flex flex-col items-center justify-center min-h-[50vh]">
-            <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
-            <p className="text-sm text-muted-foreground">Loading reports...</p>
-          </div>
-        </div>
-      </main>
-    )
+    const data = await response.json()
+    return data
+  } catch (error) {
+    console.error("Fetch error:", error)
+    throw error
   }
+}
 
-  if (error) {
+interface PageProps {
+  searchParams: Promise<{ page?: string }>
+}
+
+export default async function ReportsPage({ searchParams }: PageProps) {
+  const params = await searchParams
+  const currentPage = Number(params.page) || 1
+  const pageSize = 10
+
+  let data: ReportsResponse
+  
+  try {
+    data = await getReports()
+  } catch (error) {
     return (
       <main className="min-h-screen bg-background">
         <div className="container mx-auto px-4 py-8 max-w-4xl">
           <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
-            <div className="p-4 rounded-lg bg-destructive/10 text-destructive max-w-md">
+            <div className="p-4 rounded-lg bg-destructive/10 text-destructive">
               <h2 className="text-xl font-bold mb-2">Failed to load reports</h2>
-              <p className="text-sm">{error}</p>
-              <p className="text-sm mt-2">
-                Please make sure your backend is running and accessible.
+              <p className="text-sm">
+                {error instanceof Error ? error.message : "Unknown error occurred"}
               </p>
-            </div>
-          </div>
-        </div>
-      </main>
-    )
-  }
-
-  if (!data || !data.reports || data.reports.length === 0) {
-    return (
-      <main className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
-          <header className="mb-8">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <FileText className="h-6 w-6 text-primary" />
-              </div>
-              <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                Reports
-              </h1>
-            </div>
-          </header>
-          <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
-            <div className="p-4 rounded-lg bg-muted/50 text-center">
-              <FileText className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
-              <h2 className="text-xl font-bold mb-2">No reports found</h2>
-              <p className="text-sm text-muted-foreground">
-                There are no email analysis reports yet.
+              <p className="text-sm mt-2">
+                Please make sure your backend is running on the correct port.
               </p>
             </div>
           </div>
@@ -142,6 +72,7 @@ export function ReportsContent() {
   }
 
   const totalPages = Math.ceil(data.total / pageSize)
+  
   const startIndex = (currentPage - 1) * pageSize
   const endIndex = startIndex + pageSize
   const reports = data.reports.slice(startIndex, endIndex)
