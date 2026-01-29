@@ -5,32 +5,32 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { getApiUrl } from "@/lib/api"
 
-// Force dynamic rendering
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
-
 async function getReports(): Promise<ReportsResponse> {
   try {
-    const apiUrl = getApiUrl()
+    const apiUrl = getApiUrl();
     console.log("Fetching from:", `${apiUrl}/reports`)
+    // console.log("Fetching from:", `http://peds.liger-saiph.ts.net:5000/reports`)
     
+    // const response = await fetch(`http://peds.liger-saiph.ts.net:5000/reports`, {
+    //   cache: "no-store",
+    //   headers: {
+    //     "Content-Type": "application/json",
+    //   },
+    // })
     const response = await fetch(`${apiUrl}/reports`, {
       cache: "no-store",
       headers: {
         "Content-Type": "application/json",
       },
-      // Add a timeout
-      signal: AbortSignal.timeout(10000), // 10 second timeout
     })
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error("API Error:", response.status, errorText)
-      throw new Error(`Failed to fetch reports: ${response.status} ${errorText}`)
-    }
+    // if (!response.ok) {
+    //   const errorText = await response.text()
+    //   console.error("API Error:", response.status, errorText)
+    //   throw new Error(`Failed to fetch reports: ${response.status} ${errorText}`)
+    // }
 
     const data = await response.json()
-    console.log("Fetched reports:", data.total, "total reports")
     return data
   } catch (error) {
     console.error("Fetch error:", error)

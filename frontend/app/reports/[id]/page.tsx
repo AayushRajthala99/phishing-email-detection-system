@@ -3,6 +3,7 @@ import { ReportCard } from "@/components/ui/report-card"
 import { FileText, ChevronLeft, ChevronRight } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { getApiUrl } from "@/lib/api"
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic'
@@ -12,7 +13,7 @@ async function getReports(): Promise<ReportsResponse> {
   try {
     // TEMPORARY: Use direct backend URL
     // Replace with your actual backend URL
-    const apiUrl = "http://localhost:5000"; // Change this to your backend URL
+    const apiUrl = getApiUrl(); // Change this to your backend URL
     
     console.log("Fetching from:", `${apiUrl}/reports`)
     
