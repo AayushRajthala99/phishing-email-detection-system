@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button"
 import { getApiUrl } from "@/lib/api"
 import { useSearchParams } from "next/navigation"
 
-export default function ReportsPage() {
+export function ReportsContent() {
   const searchParams = useSearchParams()
   const currentPage = Number(searchParams.get("page")) || 1
   const pageSize = 10
