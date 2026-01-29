@@ -64,7 +64,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: http://backend
+        NEXT_PUBLIC_API_URL: http://localhost
         NEXT_PUBLIC_API_PORT: 5000
       cache_from:
         - frontend-container:latest
