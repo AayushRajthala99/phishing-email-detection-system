@@ -1,226 +1,275 @@
-import { ReportsResponse, Report } from "@/lib/types"
-import { ReportCard } from "@/components/ui/report-card"
-import { FileText, ChevronLeft, ChevronRight } from "lucide-react"
+import { Report } from "@/lib/types"
+import { notFound } from "next/navigation"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
+import {
+  ArrowLeft,
+  AlertTriangle,
+  CheckCircle,
+  Clock,
+  Mail,
+  FileText,
+  BarChart3,
+  Paperclip,
+  ShieldCheck,
+  ShieldAlert,
+} from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
 import { getApiUrl } from "@/lib/api"
 
-// Force dynamic rendering
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
-
-async function getReports(): Promise<ReportsResponse> {
+async function getReport(id: string): Promise<Report | null> {
   try {
-    // TEMPORARY: Use direct backend URL
-    // Replace with your actual backend URL
-    const apiUrl = getApiUrl(); // Change this to your backend URL
+    const apiUrl = getApiUrl()
+    console.log("Fetching report from:", `${apiUrl}/report?id=${id}`)
+    // console.log("Fetching report from:", `http://peds.liger-saiph.ts.net:5000/report?id=${id}`)
     
-    console.log("Fetching from:", `${apiUrl}/reports`)
-    
-    const response = await fetch(`${apiUrl}/reports`, {
+    // const response = await fetch(`http://peds.liger-saiph.ts.net:5000/report?id=${id}`, {
+    //   cache: "no-store",
+    //   headers: {
+    //     "Content-Type": "application/json",
+    //   },
+    // })
+    const response = await fetch(`${apiUrl}/report?id=${id}`, {
       cache: "no-store",
       headers: {
         "Content-Type": "application/json",
       },
-      signal: AbortSignal.timeout(10000),
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      console.error("API Error:", response.status, errorText)
-      throw new Error(`Failed to fetch reports: ${response.status} ${errorText}`)
+      console.error("API Error:", response.status, await response.text())
+      return null
     }
 
     const data = await response.json()
-    console.log("Raw API response:", data)
-    console.log("Response has 'reports' property?", 'reports' in data)
-    console.log("Response has 'total' property?", 'total' in data)
-    
-    // Handle different response formats
-    let normalizedData: ReportsResponse
-    
-    if (Array.isArray(data)) {
-      // Backend returns plain array
-      normalizedData = {
-        total: data.length,
-        reports: data
-      }
-    } else if (data.reports && Array.isArray(data.reports)) {
-      // Backend returns {reports: [...], total: X}
-      normalizedData = {
-        total: data.total || data.reports.length,
-        reports: data.reports
-      }
-    } else {
-      console.error("Unexpected response format:", data)
-      throw new Error("Unexpected API response format")
-    }
-    
-    console.log("Successfully fetched", normalizedData.total, "reports")
-    return normalizedData
+    return data
   } catch (error) {
     console.error("Fetch error:", error)
-    throw error
+    return null
   }
 }
 
-interface PageProps {
-  searchParams: Promise<{ page?: string }>
-}
+export default async function ReportDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+  const report = await getReport(id)
 
-export default async function ReportsPage({ searchParams }: PageProps) {
-  const params = await searchParams
-  const currentPage = Number(params.page) || 1
-  const pageSize = 10
-
-  let data: ReportsResponse
-  
-  try {
-    data = await getReports()
-  } catch (error) {
-    return (
-      <main className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
-          <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
-            <div className="p-4 rounded-lg bg-destructive/10 text-destructive max-w-md">
-              <h2 className="text-xl font-bold mb-2">Failed to load reports</h2>
-              <p className="text-sm mb-2">
-                {error instanceof Error ? error.message : "Unknown error occurred"}
-              </p>
-              <p className="text-sm">
-                Please check:
-              </p>
-              <ul className="text-xs mt-2 space-y-1 list-disc list-inside">
-                <li>Backend is running on port 5000</li>
-                <li>CORS is enabled on the backend</li>
-                <li>The URL in the code matches your backend</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-      </main>
-    )
+  if (!report) {
+    notFound()
   }
 
-  if (!data.reports || data.reports.length === 0) {
-    return (
-      <main className="min-h-screen bg-background">
-        <div className="container mx-auto px-4 py-8 max-w-4xl">
-          <header className="mb-8">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <FileText className="h-6 w-6 text-primary" />
-              </div>
-              <h1 className="text-3xl font-bold tracking-tight text-foreground">
-                Reports
-              </h1>
-            </div>
-          </header>
-          <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
-            <div className="p-4 rounded-lg bg-muted/50 text-center">
-              <FileText className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
-              <h2 className="text-xl font-bold mb-2">No reports found</h2>
-              <p className="text-sm text-muted-foreground">
-                There are no email analysis reports yet.
-              </p>
-            </div>
-          </div>
-        </div>
-      </main>
-    )
+  const isSpam = report.prediction === "spam"
+
+  const formatTimestamp = (timestamp: string) => {
+    return new Date(timestamp).toLocaleString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
   }
 
-  const totalPages = Math.ceil(data.total / pageSize)
-  
-  const startIndex = (currentPage - 1) * pageSize
-  const endIndex = startIndex + pageSize
-  const reports = data.reports.slice(startIndex, endIndex)
-
-  const spamCount = reports.filter((r) => r.prediction === "spam").length
-  const hamCount = reports.filter((r) => r.prediction === "ham").length
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  }
 
   return (
     <main className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
-        <header className="mb-8">
+      <div className="container mx-auto px-4 py-8 max-w-3xl">
+        <Link
+          href="/reports"
+          className="inline-flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors mb-6"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to Reports
+        </Link>
+
+        <div
+          className={cn(
+            "rounded-2xl border-2 p-6 mb-6",
+            isSpam
+              ? "bg-red-500/10 border-red-500/50"
+              : "bg-green-500/10 border-green-500/50"
+          )}
+        >
           <div className="flex items-center gap-3 mb-4">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <FileText className="h-6 w-6 text-primary" />
+            {isSpam ? (
+              <AlertTriangle className="h-8 w-8 text-red-500" />
+            ) : (
+              <CheckCircle className="h-8 w-8 text-green-500" />
+            )}
+            <div>
+              <Badge
+                variant={isSpam ? "destructive" : "default"}
+                className={cn(
+                  "text-sm font-semibold uppercase",
+                  !isSpam && "bg-green-600 hover:bg-green-700 text-white"
+                )}
+              >
+                {report.prediction}
+              </Badge>
+              <p className="text-sm text-muted-foreground mt-1">
+                Prediction Result
+              </p>
             </div>
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">
-              Reports
-            </h1>
           </div>
 
-          <div className="flex items-center gap-4 text-sm text-muted-foreground">
-            <span>
-              Showing <strong className="text-foreground">{reports.length}</strong> of{" "}
-              <strong className="text-foreground">{data.total}</strong> reports
-            </span>
-            <span className="text-border">|</span>
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-red-500" />
-              <strong className="text-foreground">{spamCount}</strong> spam
-            </span>
-            <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-green-500" />
-              <strong className="text-foreground">{hamCount}</strong> ham
-            </span>
-          </div>
-        </header>
-
-        <div className="grid gap-4">
-          {reports.map((report) => (
-            <ReportCard key={report._id} report={report} />
-          ))}
+          <p className="text-xs font-mono text-muted-foreground">
+            Report ID: {report._id}
+          </p>
         </div>
 
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between mt-8 pt-6 border-t">
-            <p className="text-sm text-muted-foreground">
-              Page <strong className="text-foreground">{currentPage}</strong> of{" "}
-              <strong className="text-foreground">{totalPages}</strong>
-            </p>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage <= 1}
-                asChild={currentPage > 1}
-              >
-                {currentPage > 1 ? (
-                  <Link href={`/reports?page=${currentPage - 1}`}>
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    Previous
-                  </Link>
-                ) : (
-                  <span>
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    Previous
+        <div className="grid gap-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Mail className="h-4 w-4 text-muted-foreground" />
+                Subject
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-lg font-medium">{report.subject}</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <FileText className="h-4 w-4 text-muted-foreground" />
+                Body
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                {report.body}
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BarChart3 className="h-4 w-4 text-muted-foreground" />
+                Probability Analysis
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-red-600">
+                    Spam Probability
                   </span>
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage >= totalPages}
-                asChild={currentPage < totalPages}
-              >
-                {currentPage < totalPages ? (
-                  <Link href={`/reports?page=${currentPage + 1}`}>
-                    Next
-                    <ChevronRight className="h-4 w-4 ml-1" />
-                  </Link>
-                ) : (
-                  <span>
-                    Next
-                    <ChevronRight className="h-4 w-4 ml-1" />
+                  <span className="text-sm font-bold text-red-600">
+                    {(report.spam_probability * 100).toFixed(2)}%
                   </span>
-                )}
-              </Button>
-            </div>
-          </div>
-        )}
+                </div>
+                <Progress
+                  value={report.spam_probability * 100}
+                  className="h-2 bg-red-100 [&>div]:bg-red-500"
+                />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-green-600">
+                    Ham Probability
+                  </span>
+                  <span className="text-sm font-bold text-green-600">
+                    {(report.ham_probability * 100).toFixed(2)}%
+                  </span>
+                </div>
+                <Progress
+                  value={report.ham_probability * 100}
+                  className="h-2 bg-green-100 [&>div]:bg-green-500"
+                />
+              </div>
+
+              <div className="pt-2 border-t">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-muted-foreground">
+                    Model Confidence
+                  </span>
+                  <span className="text-lg font-bold text-foreground">
+                    {(report.confidence * 100).toFixed(2)}%
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {report.attachments_info && report.attachments_info.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Paperclip className="h-4 w-4 text-muted-foreground" />
+                  Attachments ({report.attachments_info.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {report.attachments_info.map((attachment, index) => (
+                  <div
+                    key={index}
+                    className="flex items-start justify-between p-3 rounded-lg bg-muted/50 border"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-sm truncate">
+                        {attachment.filename}
+                      </p>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
+                        <span>{attachment.content_type}</span>
+                        <span>{formatFileSize(attachment.size)}</span>
+                      </div>
+                      <p className="text-xs font-mono text-muted-foreground mt-1 truncate">
+                        SHA256: {attachment.sha256.slice(0, 16)}...
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 ml-3">
+                      {attachment.malicious_score === 0 ? (
+                        <>
+                          <ShieldCheck className="h-4 w-4 text-green-500" />
+                          <span className="text-xs font-medium text-green-600">
+                            Safe
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          <ShieldAlert className="h-4 w-4 text-red-500" />
+                          <span className="text-xs font-medium text-red-600">
+                            Risk: {attachment.malicious_score}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                Timestamp
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-muted-foreground">
+                {formatTimestamp(report.timestamp)}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </main>
   )
