@@ -125,7 +125,7 @@ const handleSubmit = async (e: React.FormEvent) => {
       method: "POST",
       body: formData,
     });
-
+    console.log(`${API_URL}/predict`);
     if (!response.ok) {
       const errorData = await response.json();
       throw new Error(errorData.detail || "Failed to analyze email");
