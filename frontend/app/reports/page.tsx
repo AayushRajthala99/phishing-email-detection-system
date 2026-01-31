@@ -1,7 +1,3 @@
-"use client"
-
-import { useEffect, useState } from "react"
-import { useSearchParams } from "next/navigation"
 import { ReportsResponse } from "@/lib/types"
 import { ReportCard } from "@/components/ui/report-card"
 import { FileText, ChevronLeft, ChevronRight } from "lucide-react"
@@ -9,51 +5,71 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { getApiUrl } from "@/lib/api"
 
-interface PageProps {
-  searchParams: { page?: string }
-}
+async function getReports(): Promise<ReportsResponse> {
+  try {
+    const apiUrl = getApiUrl()
+    console.log("Fetching from:", `${apiUrl}/reports`)
+    // console.log("Fetching from:", `http://peds.liger-saiph.ts.net:5000/reports`)
+    
+    // const response = await fetch(`http://peds.liger-saiph.ts.net:5000/reports`, {
+    //   cache: "no-store",
+    //   headers: {
+    //     "Content-Type": "application/json",
+    //   },
+    // })
+    const response = await fetch(`${apiUrl}/reports`, {
+      cache: "no-store",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    })
 
-export default function ReportsPage() {
-  const searchParams = useSearchParams()
-  const currentPage = Number(searchParams?.get("page")) || 1
-  const pageSize = 10
-
-  const [data, setData] = useState<ReportsResponse | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchReports = async () => {
-      try {
-        const apiUrl = getApiUrl()
-        console.log("CLIENT fetching:", `${apiUrl}/reports`)
-
-        const res = await fetch(`${apiUrl}/reports`)
-        // const res = await fetch(`http://peds.liger-saiph.ts.net:5000/reports`)
-        if (!res.ok) throw new Error("Failed to fetch reports")
-
-        const json: ReportsResponse = await res.json()
-        setData(json)
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error")
-      } finally {
-        setLoading(false)
-      }
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("API Error:", response.status, errorText)
+      throw new Error(`Failed to fetch reports: ${response.status} ${errorText}`)
     }
 
-    fetchReports()
-  }, [])
-
-  // ✅ Guards (VERY IMPORTANT)
-  if (loading) {
-    return <p className="p-8">Loading reports...</p>
+    const data = await response.json()
+    return data
+  } catch (error) {
+    console.error("Fetch error:", error)
+    throw error
   }
+}
 
-  if (error) {
-    return <p className="p-8 text-red-500">{error}</p>
+interface PageProps {
+  searchParams: Promise<{ page?: string }>
+}
+
+export default async function ReportsPage({ searchParams }: PageProps) {
+  const params = await searchParams
+  const currentPage = Number(params.page) || 1
+  const pageSize = 10
+
+  let data: ReportsResponse
+  
+  try {
+    data = await getReports()
+  } catch (error) {
+    return (
+      <main className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-8 max-w-4xl">
+          <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
+            <div className="p-4 rounded-lg bg-destructive/10 text-destructive">
+              <h2 className="text-xl font-bold mb-2">Failed to load reports</h2>
+              <p className="text-sm">
+                {error instanceof Error ? error.message : "Unknown error occurred"}
+              </p>
+              <p className="text-sm mt-2">
+                Please make sure your backend is running on the correct port.
+              </p>
+            </div>
+          </div>
+        </div>
+      </main>
+    )
   }
-
-  if (!data) return null
 
   const totalPages = Math.ceil(data.total / pageSize)
   
