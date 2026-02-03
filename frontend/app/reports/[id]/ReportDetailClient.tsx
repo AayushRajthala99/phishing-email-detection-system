@@ -3,31 +3,16 @@
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-
 import { Report } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { getApiUrl } from "@/lib/api"
-
-import {
-  ArrowLeft,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
-  Mail,
-  FileText,
-  BarChart3,
-  Paperclip,
-  ShieldCheck,
-  ShieldAlert,
-} from "lucide-react"
-
+import { ArrowLeft, AlertTriangle, CheckCircle, Clock, Mail, FileText, BarChart3, Paperclip, ShieldCheck, ShieldAlert } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 
-export default function ReportDetailPage({ id }: { id: string }) {
+export default function ReportDetailClient({ id }: { id: string }) {
   const router = useRouter()
-
   const [report, setReport] = useState<Report | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -35,63 +20,35 @@ export default function ReportDetailPage({ id }: { id: string }) {
     async function fetchReport() {
       try {
         const apiUrl = getApiUrl()
-        const res = await fetch(`${apiUrl}/report?id=${id}`, {
-          headers: { "Content-Type": "application/json" },
-          cache: "no-store",
-        })
-        // const res = await fetch(`http://peds.liger-saiph.ts.net:5000/report?id=${id}`, {
-        // })
-        // console.log(apiUrl)
-        // console.log(res)
+        const res = await fetch(`${apiUrl}/report?id=${id}`, { cache: "no-store" })
+        // console.log("Fetch response status:", res.status)
+        // console.log("Fetching report with ID:", id)
         if (!res.ok) {
           router.replace("/404")
           return
         }
-
         const data = await res.json()
         setReport(data)
-      } catch (error) {
-        console.error("Fetch error:", error)
+      } catch (err) {
+        console.error(err)
         router.replace("/404")
       } finally {
         setLoading(false)
       }
     }
-
     fetchReport()
   }, [id, router])
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center text-muted-foreground">
-        Loading report…
-      </div>
-    )
-  }
-
+  if (loading) return <div className="flex min-h-screen items-center justify-center">Loading…</div>
   if (!report) return null
 
   const isSpam = report.prediction === "spam"
-
-  const formatTimestamp = (timestamp: string) =>
-    new Date(timestamp).toLocaleString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    })
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
+  const formatTimestamp = (ts: string) => new Date(ts).toLocaleString()
+  const formatFileSize = (bytes: number) =>
+    bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / (1024*1024)).toFixed(1)} MB`
 
   return (
-    <main className="min-h-screen bg-background">
+   <main className="min-h-screen bg-background">
       <div className="container mx-auto px-4 py-8 max-w-3xl">
         <Link
           href="/reports"

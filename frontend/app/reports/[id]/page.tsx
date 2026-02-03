@@ -1,9 +1,7 @@
-import ReportDetailPage from "./reportSingle";
+import ReportDetailClient from "./ReportDetailClient"
 
-export default function Page({
-  params,
-}: {
-  params: { id: string };
-}) {
-  return <ReportDetailPage id={params.id} />;
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  // console.log("Rendering Report Detail Page for ID:", id)
+  return <ReportDetailClient id={id} />
 }
