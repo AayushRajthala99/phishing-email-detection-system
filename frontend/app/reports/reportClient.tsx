@@ -172,8 +172,8 @@ export default function ReportsClient({
       setLoading(true) // ✅ Reset loading state on page change
       try {
         const apiUrl = getApiUrl()
-        // const res = await fetch(`${apiUrl}/reports`)
-        const res = await fetch(`http://peds.liger-saiph.ts.net:5000/reports`)
+        const res = await fetch(`${apiUrl}/reports`)
+        // const res = await fetch(`http://peds.liger-saiph.ts.net:5000/reports`)
         if (!res.ok) throw new Error("Failed to fetch reports")
 
         const json: ReportsResponse = await res.json()
