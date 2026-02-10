@@ -18,7 +18,6 @@ const navItems = [
   { name: "Analyzer", href: "/", icon: Shield },
   { name: "Reports", href: "/reports", icon: BarChart3 },
   { name: "Dashboard", href: "/dashboard", icon: History },
-  { name: "Help", href: "#", icon: HelpCircle },
 ];
 
 export function Navbar() {
