@@ -55,76 +55,16 @@ A ML-powered phishing email detection system that uses machine learning to detec
 ---
 
 ## Architecture Design
+<p align="center">
+<img width="787" height="934" alt="Phishing Email Detection System-Architecture Diagram" src="https://github.com/user-attachments/assets/13f56fa0-c737-4374-86fc-5c02b6751290" />
+</p>
 
-```
-┌──────────────────────────────────────────────────────────────────┐
-│                        Client Browser                             │
-│                    (http://localhost:3000)                        │
-└────────────────────────┬─────────────────────────────────────────┘
-                         │
-                         │ HTTP/HTTPS
-                         │
-┌────────────────────────▼─────────────────────────────────────────┐
-│              Next.js Frontend Container                           │
-│                      (Port 3000)                                  │
-│  • Server-side rendering                                          │
-│  • API proxy /api/* → backend                                     │
-│  • React components with TypeScript                               │
-│  • Drag & drop file upload                                        │
-└────────────────────────┬─────────────────────────────────────────┘
-                         │
-                         │ Internal Network (app-network)
-                         │ /api/* → http://backend:5000/*
-                         │
-┌────────────────────────▼─────────────────────────────────────────┐
-│              FastAPI Backend Container                            │
-│                      (Port 5000)                                  │
-│  ┌──────────────────────────────────────────────────────────┐    │
-│  │ API Layer                                                 │    │
-│  │  • Request logging & performance tracking                │    │
-│  │  • Rate limiting (100 req/min)                           │    │
-│  │  • Security headers                                       │    │
-│  │  • GZip compression                                       │    │
-│  └──────────────────────────────────────────────────────────┘    │
-│  ┌──────────────────────────────────────────────────────────┐    │
-│  │ Business Logic                                            │    │
-│  │  • ML model serving (TF-IDF + Logistic Regression)       │    │
-│  │  • SHA256 file hashing                                    │    │
-│  │  • Input validation (Pydantic)                            │    │
-│  │  • Intelligent caching layer                              │    │
-│  └──────────────────────────────────────────────────────────┘    │
-│                         │                                         │
-│                         │ Motor async driver                      │
-│                         │ Connection pool (10-50 connections)     │
-└─────────────────────────┼─────────────────────────────────────────┘
-                          │
-                          │ Private Network Only
-                          │ (No external access)
-                          │
-┌─────────────────────────▼─────────────────────────────────────────┐
-│              MongoDB Database Container                            │
-│                     (Internal Only)                                │
-│  • Document storage for predictions                                │
-│  • Indexed collections (timestamp, prediction, SHA256)            │
-│  • Volume persistence (mongodb_data, mongodb_config)              │
-│  • Healthcheck monitoring                                          │
-│  • Optimized for high concurrency                                 │
-└────────────────────────────────────────────────────────────────────┘
-```
+## Data Flow Diagram
+<p align="center">
+<img width="772" height="1071" alt="Phishing Email Detection System-Data Flow Diagram" src="https://github.com/user-attachments/assets/aac26d4b-45d1-4025-b645-582fc4157d67" style="align-self:center"/>
+</p>
 
-### Data Flow
-
-```
-Email Submission → Validation → ML Prediction → SHA256 Hashing
-                                       ↓
-                            Cache Check (60s TTL)
-                                       ↓
-                              MongoDB Storage
-                                       ↓
-                            Response with Verdict
-```
-
-### Technology Stack
+## Technology Stack
 
 | Layer             | Technology                           | Purpose                                            |
 | ----------------- | ------------------------------------ | -------------------------------------------------- |
@@ -244,7 +184,7 @@ npm run dev
 
 - Frontend: http://localhost:3000
 - Backend: http://localhost:5000
-- API Docs: http://localhost:5000/docs
+- API Docs: http://localhost:5000/redoc
 
 ---
 
@@ -252,39 +192,62 @@ npm run dev
 
 ```
 phishing-email-detection-system/
-├── backend/
-│   ├── models/
-│   │   ├── spam_classifier_model.pkl    # Trained ML model
-│   │   └── tfidf_vectorizer.pkl         # TF-IDF vectorizer
-│   ├── app.py                           # FastAPI application
-│   ├── database.py                      # MongoDB manager with caching
-│   ├── cache.py                         # In-memory cache with TTL
-│   ├── config.py                        # Configuration management
-│   ├── middleware.py                    # Logging, rate limiting, security
-│   ├── requirements.txt                 # Python dependencies
-│   ├── Dockerfile                       # Multi-stage build with BuildKit
-│   └── .dockerignore                    # Docker ignore patterns
-│
-├── frontend/
-│   ├── app/
-│   │   ├── page.tsx                     # Main page component
-│   │   └── layout.tsx                   # Root layout
-│   ├── components/
-│   │   └── ui/                          # Reusable UI components
-│   ├── lib/
-│   │   └── utils.ts                     # Utility functions
-│   ├── public/                          # Static assets
-│   ├── next.config.ts                   # Next.js configuration
-│   ├── package.json                     # Node dependencies
-│   ├── Dockerfile                       # Frontend Docker config
-│   ├── .dockerignore                    # Docker ignore patterns
-│   └── .env.example                     # Environment variables template
-│
-├── mongo-data/                          # MongoDB volume (auto-created)
-├── docker-compose.yml                   # 3-service orchestration
-├── swagger.yml                          # API documentation
-├── README.md                            # This file
-└── LICENSE                              # MIT License
+  ├── README.md
+  ├── docker-compose.yml
+  ├── LICENSE
+  ├── swagger.yml
+  ├── .dockerignore
+  ├── .env.example
+  ├── backend/
+  │   ├── app.py
+  │   ├── cache.py
+  │   ├── config.py
+  │   ├── database.py
+  │   ├── Dockerfile
+  │   ├── middleware.py
+  │   ├── requirements.txt
+  │   ├── .dockerignore
+  │   └── models/
+  │       └── spam_classifier_model.pkl
+  ├── frontend/
+  │   ├── README.md
+  │   ├── components.json
+  │   ├── Dockerfile
+  │   ├── eslint.config.mjs
+  │   ├── next.config.ts
+  │   ├── package.json
+  │   ├── postcss.config.mjs
+  │   ├── tsconfig.json
+  │   ├── .dockerignore
+  │   ├── app/
+  │   │   ├── globals.css
+  │   │   ├── layout.tsx
+  │   │   ├── page.tsx
+  │   │   └── reports/
+  │   │       ├── page.tsx
+  │   │       ├── reportClient.tsx
+  │   │       └── [id]/
+  │   │           ├── page.tsx
+  │   │           └── ReportDetailClient.tsx
+  │   ├── components/
+  │   │   └── ui/
+  │   │       ├── alert.tsx
+  │   │       ├── badge.tsx
+  │   │       ├── button.tsx
+  │   │       ├── card.tsx
+  │   │       ├── input.tsx
+  │   │       ├── label.tsx
+  │   │       ├── navbar.tsx
+  │   │       ├── progress.tsx
+  │   │       ├── report-card.tsx
+  │   │       └── textarea.tsx
+  │   └── lib/
+  │       ├── api.ts
+  │       ├── types.ts
+  │       └── utils.ts
+  └── .github/
+      └── workflows/
+          └── master.yml
 ```
 ---
 
