@@ -17,7 +17,12 @@ import { Button } from "@/components/ui/button";
 const navItems = [
   { name: "Analyzer", href: "/", icon: Shield },
   { name: "Reports", href: "/reports", icon: BarChart3 },
+<<<<<<< HEAD
   { name: "Dashboard", href: "/dashboard", icon: History },];
+=======
+  { name: "Dashboard", href: "/dashboard", icon: History },
+];
+>>>>>>> 6888d91bb0d163d810fb91096b8f5587575140e8
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
