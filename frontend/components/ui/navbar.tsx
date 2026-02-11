@@ -17,8 +17,12 @@ import { Button } from "@/components/ui/button";
 const navItems = [
   { name: "Analyzer", href: "/", icon: Shield },
   { name: "Reports", href: "/reports", icon: BarChart3 },
+<<<<<<< HEAD
+  { name: "Dashboard", href: "/dashboard", icon: History },];
+=======
   { name: "Dashboard", href: "/dashboard", icon: History },
 ];
+>>>>>>> 6888d91bb0d163d810fb91096b8f5587575140e8
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -34,10 +38,10 @@ export function Navbar() {
                 <Shield className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h1 className="text-xl font-semibold text-foreground">
+                <h1 className="text-[12px] md:text-sm font-semibold text-foreground md:text-xl">
                   Phishing Email Detection System
                 </h1>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-[12px] md:text-sm text-muted-foreground">
                   AI-powered email security analysis
                 </p>
               </div>
